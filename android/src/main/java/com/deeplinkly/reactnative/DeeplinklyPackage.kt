@@ -22,7 +22,10 @@ class DeeplinklyPackage : BaseReactPackage() {
         false, // canOverrideExistingModule
         false, // needsEagerInit
         false, // isCxxModule
-        true   // isTurboModule
+        // Must track the source set that actually compiled, not a constant.
+        // Claiming TurboModule on a legacy build makes the registry look for a
+        // JSI binding that was never generated.
+        BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
       )
     )
   }

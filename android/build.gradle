@@ -1,22 +1,72 @@
 buildscript {
-    ext.kotlin_version = "2.2.0"
+    // Defer to the host app's pinned versions where it has them. A library that
+    // hardcodes its own AGP/Kotlin is a library that breaks somebody's build the
+    // week they upgrade.
+    ext.safeExtGet = { prop, fallback ->
+        rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+    }
+
     repositories {
         google()
         mavenCentral()
     }
+
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+        classpath "com.android.tools.build:gradle:8.7.2"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${safeExtGet('kotlinVersion', '2.2.0')}"
     }
+}
+
+// New architecture is the default from React Native 0.79 on, so an absent
+// property means "on", not "off". Reading it as off would silently compile the
+// legacy source set into a new-architecture app, where the module then fails to
+// register as a TurboModule.
+def isNewArchitectureEnabled() {
+    if (!project.hasProperty("newArchEnabled")) {
+        return true
+    }
+    return project.property("newArchEnabled").toString() == "true"
 }
 
 apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 
-// The React Native Gradle plugin drives codegen for the TurboModule spec in
-// src/NativeDeeplinkly.ts. Without it the generated RNDeeplinklySpec interface
-// this module implements does not exist and the build fails to compile.
-apply plugin: "com.facebook.react"
+// com.deeplinkly:deeplinkly-android is compiled with Kotlin 2.2.0, and a 2.0.x
+// compiler cannot read 2.2.0 metadata. Gradle loads one Kotlin plugin for the
+// entire build, so the version is decided by the *host app*, not by anything
+// this file can set — and the React Native 0.79 template lands on 2.0.21.
+//
+// Read from the applied plugin rather than from ext.kotlinVersion, because the
+// two disagree in exactly the case this check exists for: the template leaves
+// its classpath entry unversioned, so KGP arrives transitively from
+// react-native-gradle-plugin and setting ext alone changes nothing.
+//
+// Without this, the failure surfaces as "Internal compiler error" over a wall of
+// FIR stack frames, which says nothing about what to change.
+def MIN_KOTLIN = "2.2.0"
+def hostKotlin = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt
+    .getKotlinPluginVersion(project)
+if (org.gradle.util.internal.VersionNumber.parse(hostKotlin)
+        < org.gradle.util.internal.VersionNumber.parse(MIN_KOTLIN)) {
+    throw new GradleException(
+        "react-native-deeplinkly needs Kotlin ${MIN_KOTLIN} or newer; this build resolved ${hostKotlin}.\n\n" +
+        "In android/build.gradle set the version AND pin it on the classpath —\n" +
+        "setting ext alone does nothing while the classpath entry is unversioned:\n\n" +
+        "    buildscript {\n" +
+        "        ext { kotlinVersion = \"${MIN_KOTLIN}\" }\n" +
+        "        dependencies {\n" +
+        "            classpath(\"org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlinVersion\")\n" +
+        "        }\n" +
+        "    }\n"
+    )
+}
+
+if (isNewArchitectureEnabled()) {
+    // Drives codegen for the TurboModule spec in src/NativeDeeplinkly.ts. Without
+    // it the generated NativeDeeplinklySpec that src/newarch compiles against does
+    // not exist.
+    apply plugin: "com.facebook.react"
+}
 
 group = "com.deeplinkly.reactnative"
 version = new groovy.json.JsonSlurper().parse(file("../package.json")).version
@@ -36,10 +86,15 @@ repositories {
 
 android {
     namespace = "com.deeplinkly.reactnative"
-    compileSdk = 35
+    compileSdk = safeExtGet("compileSdkVersion", 35)
 
     defaultConfig {
-        minSdk = 24
+        minSdk = safeExtGet("minSdkVersion", 24)
+        buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
@@ -48,7 +103,20 @@ android {
     }
 
     sourceSets {
-        main.java.srcDirs += "src/main/java"
+        main {
+            // The two specs declare an identical method surface; only their
+            // superclass differs. Keeping the concrete module in `main` means the
+            // real logic is written once and neither architecture can drift.
+            if (isNewArchitectureEnabled()) {
+                java.srcDirs += ["src/newarch/java"]
+            } else {
+                java.srcDirs += ["src/oldarch/java"]
+            }
+        }
+    }
+
+    lint {
+        abortOnError = false
     }
 }
 

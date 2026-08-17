@@ -1,0 +1,28 @@
+buildscript {
+    ext {
+        buildToolsVersion = "35.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 35
+        targetSdkVersion = 35
+        ndkVersion = "27.1.12297006"
+        // Raised from the React Native 0.79 template's 2.0.21. The Deeplinkly
+        // native SDK is compiled with Kotlin 2.2.0, and a 2.0.x compiler cannot
+        // read 2.2.0 metadata — the build dies with an internal compiler error.
+        kotlinVersion = "2.2.0"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        // Versioned explicitly. Left bare (as the template has it) the version
+        // comes transitively from react-native-gradle-plugin, which still pins
+        // 2.0.21 — and since Gradle loads one Kotlin plugin for the whole build,
+        // ext.kotlinVersion above would be silently ignored.
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
