@@ -10,6 +10,11 @@ import type {
 } from './types';
 
 export * from './types';
+export {
+  DeeplinklyPasteButton,
+  isPasteButtonSupported,
+  type DeeplinklyPasteButtonProps,
+} from './DeeplinklyPasteButton';
 
 const LINK_EVENT = 'DeeplinklyDidResolveLink';
 
@@ -51,7 +56,12 @@ export const Deeplinkly = {
    * from a link does not race the JS bundle.
    */
   addListener(handler: (link: DeeplinklyLink) => void): Subscription {
-    const sub = emitter.addListener(LINK_EVENT, handler);
+    // NativeEventEmitter types its payload as `Object`, so the envelope's shape
+    // is asserted here rather than at every call site. The native side builds it
+    // — see DeeplinklyLink.
+    const sub = emitter.addListener(LINK_EVENT, (payload) =>
+      handler(payload as unknown as DeeplinklyLink)
+    );
 
     if (!readySignalled) {
       readySignalled = true;

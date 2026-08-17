@@ -1,131 +1,123 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Button,
+  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
+  useColorScheme,
 } from 'react-native';
+import Deeplinkly, {
+  DeeplinklyEvent,
+  type DeeplinklyLink,
+} from 'react-native-deeplinkly';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+export default function App() {
+  const isDark = useColorScheme() === 'dark';
+  const [log, setLog] = useState<string[]>([]);
+  const [links, setLinks] = useState<DeeplinklyLink[]>([]);
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  const write = useCallback((line: string) => {
+    setLog((prev) => [`${new Date().toISOString().slice(11, 19)}  ${line}`, ...prev]);
+  }, []);
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  useEffect(() => {
+    Deeplinkly.setDebugMode(true);
+
+    // Subscribing is what signals readiness to native. Links that resolved
+    // before this ran were buffered and arrive now.
+    const sub = Deeplinkly.addListener((link) => {
+      setLinks((prev) => [link, ...prev]);
+      write(`deep link: click_id=${link.click_id} params=${JSON.stringify(link.params)}`);
+    });
+
+    Deeplinkly.isAvailable().then((ok) =>
+      write(`isAvailable: ${ok}${ok ? '' : ' (no API key — every call returns its failure value)'}`)
+    );
+    Deeplinkly.getDeeplinklyId().then((id) => write(`deeplinklyId: ${id || '(empty)'}`));
+    Deeplinkly.getAttributionLevel().then((l) => write(`attributionLevel: ${l}`));
+    Deeplinkly.getInstallAttribution().then((a) =>
+      write(`installAttribution: ${JSON.stringify(a)}`)
+    );
+
+    return () => sub.remove();
+  }, [write]);
+
+  const runLogEvent = useCallback(async () => {
+    const ok = await Deeplinkly.logEvent(DeeplinklyEvent.purchase, {
+      order_id: 'ord_42',
+      amount: 49.99,
+      currency: 'INR',
+    });
+    write(`logEvent(purchase) -> ${ok}`);
+  }, [write]);
+
+  const runGenerateLink = useCallback(async () => {
+    const result = await Deeplinkly.generateLink(
+      {
+        canonicalIdentifier: 'product/sku_42',
+        title: 'Pro Plan',
+        metadata: { screen: 'upgrade', plan: 'pro' },
+      },
+      { channel: 'example-app', feature: 'smoke_test', tags: ['rn'] }
+    );
+    write(`generateLink -> ${JSON.stringify(result)}`);
+  }, [write]);
+
+  const runIdentity = useCallback(async () => {
+    Deeplinkly.setUserId('user_123');
+    write('setUserId(user_123)');
+    write(`deeplinklyId: ${await Deeplinkly.getDeeplinklyId()}`);
+  }, [write]);
+
+  const runPrivacy = useCallback(async () => {
+    write(`setAttributionLevel(reduced) -> ${await Deeplinkly.setAttributionLevel('reduced')}`);
+    write(`getAttributionLevel -> ${await Deeplinkly.getAttributionLevel()}`);
+    write(`setAttributionLevel(full) -> ${await Deeplinkly.setAttributionLevel('full')}`);
+  }, [write]);
+
+  const runPasteboard = useCallback(async () => {
+    write(`willShowPasteboardBanner -> ${await Deeplinkly.willShowPasteboardBanner()}`);
+    write(`checkPasteboardNow -> ${await Deeplinkly.checkPasteboardNow()}`);
+  }, [write]);
+
+  const theme = isDark ? styles.dark : styles.light;
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
+    <SafeAreaView style={[styles.root, theme]}>
+      <Text style={[styles.title, theme]}>react-native-deeplinkly</Text>
+
+      <View style={styles.buttons}>
+        <Button title="logEvent" onPress={runLogEvent} />
+        <Button title="generateLink" onPress={runGenerateLink} />
+        <Button title="identity" onPress={runIdentity} />
+        <Button title="privacy" onPress={runPrivacy} />
+        <Button title="pasteboard" onPress={runPasteboard} />
+      </View>
+
+      <Text style={[styles.heading, theme]}>
+        Deep links received: {links.length}
       </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
-
-  return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
+      <ScrollView style={styles.log}>
+        {log.map((line, i) => (
+          <Text key={i} style={[styles.line, theme]} selectable>
+            {line}
+          </Text>
+        ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
+  root: { flex: 1, padding: 16 },
+  light: { backgroundColor: '#fff', color: '#111' },
+  dark: { backgroundColor: '#111', color: '#eee' },
+  title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  heading: { fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 4 },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  log: { flex: 1 },
+  line: { fontFamily: 'Menlo', fontSize: 11, marginBottom: 3 },
 });
-
-export default App;

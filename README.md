@@ -3,150 +3,164 @@
 React Native SDK for deep linking, deferred deep linking, install referrer
 tracking, and attribution.
 
-> **Status: stub.** The JS surface, the TurboModule spec, and both native module
-> shells are in place and typecheck, but no native method delegates to the
-> Deeplinkly SDK yet — every call resolves its documented failure value. See
-> [Filling in the stub](#filling-in-the-stub).
+Full documentation: [**docs/REACT_NATIVE_SDK.md**](docs/REACT_NATIVE_SDK.md).
 
-## Architecture
+## What this is
 
-This package is a bridge, not an implementation. Deep link resolution, the
-install referrer, attribution, queues, retries, device signals and networking
-all live in the native SDKs, which are shared with the standalone Android/iOS
-SDKs and the Flutter plugin:
+A bridge, not an implementation. Deep link resolution, the install referrer,
+attribution, queues, retries, device signals and networking all live in the
+native SDKs, shared with the standalone Android/iOS SDKs and the Flutter plugin:
 
-| Layer   | Artifact                                |
-| ------- | --------------------------------------- |
+| Layer   | Artifact                                  |
+| ------- | ----------------------------------------- |
 | Android | `com.deeplinkly:deeplinkly-android:1.1.1` |
-| iOS     | pod `Deeplinkly`, `1.0.1`               |
+| iOS     | pod `Deeplinkly`, `1.0.1`                 |
 
 Native method names match `flutter_deeplinkly`'s method channel one-for-one, so
-the two bridges drive identical entry points and cannot drift. Payloads cross
-the boundary as the snake_case maps the native SDKs already accept; the
-camelCase-to-snake_case mapping happens in `src/index.tsx` and nowhere else.
+the bridges drive identical entry points and cannot drift. Event and link
+validation is enforced natively rather than in JavaScript, so a native-only
+integration, the Flutter plugin and this package all answer the same for the same
+input.
 
-```
-src/index.tsx          public API, camelCase → snake_case, failure defaults
-src/NativeDeeplinkly.ts codegen TurboModule spec
-src/types.ts           public types
-android/…/DeeplinklyModule.kt   Kotlin module  (stub)
-ios/RNDeeplinkly.swift          Swift module   (stub)
-ios/RNDeeplinkly.mm             ObjC++ export of the Swift class
-```
+Supports both the new and legacy React Native architectures.
 
 ## Install
 
-```sh
+```bash
 npm install react-native-deeplinkly
 cd ios && pod install
 ```
 
-Android autolinks. No manifest entries are needed — the install-referrer
-receiver and permissions arrive transitively from the native SDK.
+Then rebuild — a JS reload will not pick up native code.
 
-## Usage
+Two things the docs cover that are easy to miss:
+
+- **Android** needs Kotlin **2.2.0+** in your app's `android/build.gradle`, and
+  the classpath entry must be versioned explicitly. The native SDK's metadata is
+  unreadable by the 2.0.21 compiler React Native's template resolves. The build
+  fails with instructions if this is wrong.
+- **iOS** requires forwarding links from your `AppDelegate`. React Native has no
+  equivalent of Flutter's automatic app-delegate registration, and its template
+  ships no linking support, so **without this no deep link reaches the SDK**. See
+  [Forward links from your AppDelegate](docs/REACT_NATIVE_SDK.md#forward-links-from-your-appdelegate).
+
+## Quickstart
 
 ```ts
 import Deeplinkly from 'react-native-deeplinkly';
 
-// Links that resolved before this ran are queued natively and delivered on
-// subscribe, so a cold start from a link does not race the JS bundle.
-const sub = Deeplinkly.addListener(({ click_id, params }) => {
-  // click_id is null when the backend did not recognise the click; params
-  // still carries the link's own parameters, read off the URL in that case.
-  navigate(params.screen as string);
-});
-
-// later
-sub.remove();
+useEffect(() => {
+  // Subscribing is what signals readiness to native. Links that resolved
+  // before now — a cold start from a tap, or a deferred link recovered from the
+  // pasteboard — are buffered natively and delivered here, so nothing races
+  // your bundle.
+  const sub = Deeplinkly.addListener(({ click_id, params }) => {
+    navigate(params.screen as string);
+  });
+  return () => sub.remove();
+}, []);
 ```
 
-### Generating a link
+Every link arrives in the same envelope on both platforms — `click_id` is always
+present but may be `null` when the backend did not recognise the click, and
+`params` falls back to the URL's own parameters when the resolve could not
+complete:
+
+```ts
+{ click_id: 'ab12…', params: { screen: 'home' } }
+```
+
+### Generate a link
 
 ```ts
 const result = await Deeplinkly.generateLink(
-  {
-    canonicalIdentifier: 'movie/1234',
-    title: 'Interstellar',
-    imageUrl: 'https://cdn.example.com/interstellar.jpg',
-    metadata: { screen: 'movie', id: '1234' },
-  },
-  { channel: 'whatsapp', feature: 'share', tags: ['q3', 'hero'] }
+  { canonicalIdentifier: 'product/sku_42', title: 'Pro Plan', metadata: { plan: 'pro' } },
+  { channel: 'email', feature: 'upgrade_campaign', tags: ['spring'] }
 );
 
-if (result.success) {
-  Share.share({ message: result.url! });
-}
+if (result.success) Share.share({ message: result.url! });
 ```
 
-### Events
+### Log an event
 
 ```ts
-await Deeplinkly.logEvent(DeeplinklyEvent.purchase, {
-  value: 499,
-  currency: 'INR',
-});
+import { DeeplinklyEvent } from 'react-native-deeplinkly';
+
+await Deeplinkly.logEvent(DeeplinklyEvent.purchase, { amount: 49.99, currency: 'INR' });
 ```
 
-Validation is enforced natively, not here, so a native-only integration gets the
-same answer: name ≤ 64 chars, ≤ 25 parameters, keys ≤ 64 chars and not prefixed
-`_dl_`, string values ≤ 256 chars (arrays and objects are JSON-encoded first and
-the limit applies to the encoded form). A rejected event resolves `false` and
-sends nothing.
+Resolves `false` if the native validator rejects it — name ≤ 64 chars, ≤ 25
+parameters, keys ≤ 64 and not prefixed `_dl_`, string values ≤ 256 (arrays and
+objects are JSON-encoded first and the limit applies to the encoded form).
 
 ### Privacy
 
 ```ts
-await Deeplinkly.setTrackingEnabled(false);   // consent flow off switch
+await Deeplinkly.setTrackingEnabled(false);      // consent-flow off switch
 await Deeplinkly.setAttributionLevel('reduced'); // middle ground
-await Deeplinkly.resetPrivacyData();          // forget this device
+await Deeplinkly.resetPrivacyData();             // forget this device
 ```
 
-Deep links keep resolving and keep reaching your listeners at every level,
+Deep links keep resolving and keep reaching your listener at every level,
 including `'none'` and while tracking is disabled — these gate *reporting*, not
-functionality.
+functionality. [docs/SIGNALS.md](docs/SIGNALS.md) is the field-by-field
+reference for what each level sends.
 
-To start restricted before any JS runs, set it natively instead — enrichment can
-be sent during module registration, before a JS call could arrive:
+### Deferred deep linking on iOS (no banner)
 
-- iOS: `DeeplinklyAttributionLevel` in `Info.plist`
-- Android: `com.deeplinkly.sdk.attribution_level` manifest meta-data
+```tsx
+import { DeeplinklyPasteButton } from 'react-native-deeplinkly';
 
-### Pasteboard (iOS only)
-
-The SDK reads the pasteboard once on first launch to recover a link tapped
-before install, and iOS shows its "Pasted from…" banner for that read. On by
-default. To turn it off, use `Info.plist` — a JS call arrives after the read has
-already happened:
-
-```xml
-<key>DeeplinklyCheckPasteboardOnInstall</key>
-<false/>
+<DeeplinklyPasteButton onPasted={(handled) => setShow(!handled)} fallback={null} />;
 ```
 
-`willShowPasteboardBanner()` costs nothing and shows no banner, so it is safe to
-call on a first-run screen to decide whether to explain the prompt first. All
-three pasteboard methods resolve `false` on Android, which uses the Play Install
-Referrer and never touches the clipboard.
+The user's tap is the grant, so iOS shows no "Pasted from…" banner — unlike the
+automatic pasteboard read, which is on by default and does. iOS 16+; renders
+`fallback` elsewhere, so it is safe to place unconditionally.
 
-## Filling in the stub
+## Configuration when the API key is missing
 
-Each native method carries a `TODO(stub)` naming the `Deeplinkly` entry point it
-must delegate to. Remaining work, roughly in order:
+`isAvailable()` returns false and every other method answers with its documented
+failure value rather than throwing. Worth asserting once on a debug build:
 
-1. Delegate the Android methods in `DeeplinklyModule.kt`, and wire the SDK's
-   deep link listener into `emitLink`, including the pre-`jsReady` queue.
-2. Same for `RNDeeplinkly.swift`, plus the pasteboard methods that are real on
-   iOS.
-3. Add the example app (`example/`) and drive a real link end to end on both
-   platforms.
-4. Port the Flutter plugin's `PasteControlFactory` as a `<DeeplinklyPasteButton>`
-   component — the no-banner alternative to the automatic read.
-5. Unit tests, then CI.
+```ts
+if (__DEV__ && !(await Deeplinkly.isAvailable())) {
+  console.warn('Deeplinkly: no API key in AndroidManifest.xml / Info.plist');
+}
+```
 
-To develop against an unreleased native Android SDK: run
-`./gradlew publishToMavenLocal` in `android_deeplinkly`, then build with
-`-Pdeeplinkly.useMavenLocal=true`.
+## Example app
+
+`example/` is a React Native 0.87 app wired to this repo, with buttons for each
+API and a running log of received links.
+
+```bash
+npm install
+cd example && npm install
+cd ios && pod install && cd ..
+npm run ios      # or: npm run android
+```
+
+Send it a test link:
+
+```bash
+xcrun simctl openurl booted "deeplinkly://open?screen=home"
+adb shell am start -W -a android.intent.action.VIEW -d "deeplinkly://open?screen=home"
+```
+
+## Layout
+
+```
+src/index.tsx               public API, camelCase → snake_case, failure defaults
+src/NativeDeeplinkly.ts     codegen TurboModule spec
+src/DeeplinklyPasteButton.tsx
+android/src/main/…          concrete module (written once)
+android/src/{newarch,oldarch}/…  per-architecture superclass
+ios/RNDeeplinkly.swift      module
+ios/RNDeeplinklyLinking.swift    AppDelegate forwarding entry points
+ios/DeeplinklyPasteButton*  UIPasteControl view + manager
+docs/                       full reference, signals catalogue, handoff notes
+```
 
 ## License
 

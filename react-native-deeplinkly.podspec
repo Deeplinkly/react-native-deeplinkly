@@ -14,10 +14,14 @@ Pod::Spec.new do |s|
   s.source_files = "ios/**/*.{h,m,mm,swift}"
   s.swift_version = "5.0"
 
-  # Stays at 13.0 — React Native 0.79's own floor. ATTrackingManager and
-  # ASIdentifierManager are iOS 14 at *runtime*, not at deployment target: the
-  # native SDK weak-links them behind `if #available`, so this number is set by
-  # React Native, not by attribution.
+  # Deliberately below React Native's current floor (15.1 as of 0.87) rather
+  # than matched to it. CocoaPods takes the higher of the pod's and the app's
+  # deployment target, so a low number here costs a modern host nothing while
+  # keeping the library installable on an older one.
+  #
+  # Nothing in this bridge needs more: ATTrackingManager and the paste control
+  # are iOS 14 and 16 at *runtime*, not at deployment target — both are
+  # weak-linked behind `if #available`.
   s.platform = :ios, "13.0"
 
   # The SDK itself. Everything below the bridge — resolution, attribution, the

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -43,10 +45,42 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+
+	<!-- Custom scheme: the browser fallback path, used when Universal Links
+	     have not verified. A fallback, not a substitute for Associated
+	     Domains. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>deeplinkly</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Reused from the flutter_deeplinkly example's Android manifest (its
+	     Info.plist still carries a placeholder) so this app talks to the same
+	     Deeplinkly project. Swap for your own key from the dashboard. -->
+	<key>DeeplinklyApiKey</key>
+	<string>62da475f-4582-4f51-b106-9cb875b3cefb</string>
+
+	<!-- Hosts the SDK will accept a deferred deep link from, read off the
+	     pasteboard on first launch. Subdomains of a listed domain count. Also
+	     the hosts whose first path segment may be read as a link code. -->
+	<key>DeeplinklyLinkDomains</key>
+	<array>
+		<string>example.deeplinkly.com</string>
+	</array>
 </dict>
 </plist>

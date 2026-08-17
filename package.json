@@ -43,9 +43,9 @@
     "react-native": "*"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "react": "19.0.0",
-    "react-native": "0.79.0",
+    "@types/react": "^19.2.0",
+    "react": "19.2.3",
+    "react-native": "0.87.0",
     "react-native-builder-bob": "^0.40.0",
     "typescript": "^5.8.0"
   },
@@ -55,7 +55,12 @@
     "targets": [
       "commonjs",
       "module",
-      ["typescript", { "project": "tsconfig.build.json" }]
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
     ]
   },
   "codegenConfig": {

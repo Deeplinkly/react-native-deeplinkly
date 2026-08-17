@@ -1,6 +1,12 @@
-import type { TurboModule } from 'react-native';
+import type { CodegenTypes, TurboModule } from 'react-native';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
-import type { UnsafeObject } from 'react-native/Libraries/Types/CodegenTypes';
+
+/**
+ * Codegen's opaque object type. Re-aliased locally because its import path has
+ * moved once already — it was `react-native/Libraries/Types/CodegenTypes` before
+ * React Native 0.80 exported the `CodegenTypes` namespace from the root.
+ */
+type UnsafeObject = CodegenTypes.UnsafeObject;
 
 /**
  * Codegen spec for the native module.

@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, '..');
  * The library is consumed from the repo root, so Metro has to watch it — and
  * must be stopped from resolving the root's own copies of react / react-native.
  * Two React instances in one bundle is the classic invalid-hook-call crash.
+ *
+ * @type {import('@react-native/metro-config').MetroConfig}
  */
 const config = {
   watchFolders: [root],
