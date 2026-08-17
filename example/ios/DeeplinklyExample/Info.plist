@@ -22,13 +22,27 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>deeplinkly</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>DeeplinklyApiKey</key>
+	<string>62da475f-4582-4f51-b106-9cb875b3cefb</string>
+	<key>DeeplinklyLinkDomains</key>
+	<array>
+		<string>example.deeplinkly.com</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-	  <!-- Do not change NSAllowsArbitraryLoads to true, or you will risk app rejection! -->
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
@@ -36,6 +50,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -55,32 +71,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-
-	<!-- Custom scheme: the browser fallback path, used when Universal Links
-	     have not verified. A fallback, not a substitute for Associated
-	     Domains. -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>deeplinkly</string>
-			</array>
-		</dict>
-	</array>
-
-	<!-- Reused from the flutter_deeplinkly example's Android manifest (its
-	     Info.plist still carries a placeholder) so this app talks to the same
-	     Deeplinkly project. Swap for your own key from the dashboard. -->
-	<key>DeeplinklyApiKey</key>
-	<string>62da475f-4582-4f51-b106-9cb875b3cefb</string>
-
-	<!-- Hosts the SDK will accept a deferred deep link from, read off the
-	     pasteboard on first launch. Subdomains of a listed domain count. Also
-	     the hosts whose first path segment may be read as a link code. -->
-	<key>DeeplinklyLinkDomains</key>
-	<array>
-		<string>example.deeplinkly.com</string>
-	</array>
 </dict>
 </plist>

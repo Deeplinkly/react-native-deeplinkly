@@ -110,12 +110,20 @@ arrive one at a time and each would otherwise construct and discard a control.
 
 ## Verified
 
-- The library compiles on both architectures (`newArchEnabled` true and false);
-  the legacy build produces no codegen output and compiles the hand-written spec,
-  confirming the source-set switch actually switches.
-- `:app:assembleDebug` succeeds and autolinking registers `DeeplinklyPackage`.
-- TypeScript typechecks and `bob build` emits commonjs, module and typescript
-  outputs.
+Against React Native 0.87.0, Xcode 26.6, JDK 17, Kotlin 2.2.0.
+
+- **Android**: `:app:assembleDebug` → `BUILD SUCCESSFUL`, and autolinking
+  registers `DeeplinklyPackage` in the generated `PackageList.java`.
+- **Android, both architectures**: the library compiles with `newArchEnabled`
+  true and false. The legacy build emits no codegen output and compiles the
+  hand-written spec, so the source-set switch demonstrably switches.
+- **iOS**: `pod install` resolves 88 pods including `Deeplinkly (1.0.1)`, codegen
+  emits `RNDeeplinklySpec` / `RNDeeplinklySpecJSI.h`, and `xcodebuild` for the
+  iPhone 17 simulator → `** BUILD SUCCEEDED **`. That covers the Swift module,
+  `RNDeeplinklyLinking`, the paste-button view and manager, and the host
+  AppDelegate forwarding.
+- TypeScript typechecks; `bob build` emits commonjs, module and typescript
+  outputs; the example app typechecks against the library.
 - Both native artifacts resolve from their public registries (Maven Central,
   CocoaPods trunk).
 
@@ -124,9 +132,10 @@ arrive one at a time and each would otherwise construct and discard a control.
 Anything marked here was not observed passing and should not be assumed.
 **Nothing has been run yet** — every claim above is a compile-time result.
 
-- Runtime behaviour on device or simulator: no link has been driven end to end
-  through this bridge yet, and the iOS app has never been built (see the open
-  risk below).
+- **Runtime behaviour of any kind.** Both platforms build, but neither app has
+  been launched. No link has been driven end to end, no method has been observed
+  returning a real value, and the iOS module's runtime resolution is an open
+  question (see the open risk below).
 - The paste button has not been rendered. `UIPasteControl` needs iOS 16+ and a
   real pasteboard interaction to exercise.
 - The legacy architecture has been compiled but not run. React Native 0.87 may
@@ -137,26 +146,35 @@ Anything marked here was not observed passing and should not be assumed.
 - Objective-C AppDelegate integration. The `__has_include` pair for framework vs
   static-library linkage is written from the documented behaviour, not tested.
 
-## Open risk — iOS module resolution on the new architecture
+## Open risk — iOS module resolution at runtime
 
-**This is the one thing most likely to be wrong, and it is unresolved.**
+**Still unresolved. It compiles; whether it resolves has not been observed.**
 
 `useTurboModuleInterop()` returns `false` by default in React Native 0.87
 (`ReactCommon/react/featureflags/ReactNativeFeatureFlagsDefaults.h`). The iOS
 module is a Swift `RCTEventEmitter` exported with `RCT_EXTERN_MODULE`, i.e. a
-legacy native module — so on the new architecture it is not automatically
-bridged into the TurboModule registry by that flag.
+legacy native module, so the new architecture does not bridge it into the
+TurboModule registry via that flag.
 
-Whether it resolves anyway depends on codegen's generated module providers.
-`pod install` writes `example/ios/build/generated/ios/RCTModuleProviders.mm`;
-check whether `RNDeeplinkly` appears in it. If it does, bridgeless constructs the
-module and this is fine.
+Two observations, neither conclusive:
 
-If it does **not** resolve, the fix is an ObjC++ shim conforming to the
-codegen'd `NativeDeeplinklySpec` and forwarding into the Swift implementation —
-*not* asking host apps to flip a feature flag, which a library has no business
-requiring. That reverses the "RCT_EXTERN_MODULE is enough" decision recorded
-above, so update that section too.
+- Codegen **does** generate `RNDeeplinklySpec` and the JSI header, so the spec
+  side is wired.
+- `RNDeeplinkly` does **not** appear in
+  `build/generated/ios/ReactCodegen/RCTModuleProviders.mm` — but that file's
+  `moduleMapping` is empty for *every* module in this app, so it is not the
+  resolution path here and proves nothing either way.
+
+The definitive check is runtime: launch the example and confirm
+`Deeplinkly.isAvailable()` resolves rather than the not-linked proxy throwing.
+The example logs it on mount, so it is the first line on screen.
+
+If it does not resolve, the fix is an ObjC++ shim conforming to the generated
+`NativeDeeplinklySpec` protocol (`build/generated/ios/ReactCodegen/RNDeeplinklySpec/RNDeeplinklySpec.h`,
+declared as `@protocol NativeDeeplinklySpec <RCTBridgeModule, RCTTurboModule>`)
+forwarding into the Swift implementation — *not* asking host apps to flip a
+feature flag, which a library has no business requiring. That would reverse the
+"RCT_EXTERN_MODULE is enough" decision recorded above, so update that section too.
 
 Android is unaffected: it uses the codegen'd spec directly via `src/newarch`.
 
@@ -183,70 +201,101 @@ key was only ever in its Android manifest.
 
 Picking this up cold, in order:
 
+Everything below the "already green" line has been observed passing, so start at
+step 1 only if something looks broken. **The real remaining work is step 2.**
+
 ```bash
 cd ~/StudioProjects/react_native_deeplinkly
 
-# 1. Confirm the JS layer still builds.
+# 1. Already green — re-run only to confirm nothing rotted.
 npx tsc --noEmit && npx bob build
-
-# 2. Android — expect BUILD SUCCESSFUL on both.
 cd example/android
-./gradlew :react-native-deeplinkly:assembleDebug
+./gradlew :app:assembleDebug
 ./gradlew :react-native-deeplinkly:assembleDebug -PnewArchEnabled=false
-
-# 3. iOS — this had not completed when the work paused.
-cd ../ios && pod install
-grep -n RNDeeplinkly build/generated/ios/RCTModuleProviders.mm   # see open risk
-xcodebuild -workspace DeeplinklyExample.xcworkspace \
+cd ../ios && pod install && xcodebuild -workspace DeeplinklyExample.xcworkspace \
   -scheme DeeplinklyExample -configuration Debug -sdk iphonesimulator \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
 
-# 4. Run, then drive a link on each platform.
-cd .. && npm run ios      # and: npm run android
+# 2. NOT YET DONE — run it. Metro must be up first.
+cd .. && npx react-native start          # leave running
+npm run ios                              # and, separately: npm run android
+```
+
+Then, with the app on screen:
+
+```bash
 xcrun simctl openurl booted "deeplinkly://open?screen=home"
 adb shell am start -W -a android.intent.action.VIEW -d "deeplinkly://open?screen=home"
 ```
 
-The example app's UI logs every call and every received link, so step 4 is the
-whole runtime check: press each button, then send a link and confirm one
-`{click_id, params}` envelope arrives.
+The example logs every call and every received link on screen, so this is the
+whole runtime check. In order, confirm:
 
-### Do not install the library into `example/node_modules`
+1. `isAvailable: true` — anything else means the API key is not being read, or on
+   iOS that the module did not resolve at all (the open risk above).
+2. `deeplinklyId` is non-empty.
+3. Each button resolves without the not-linked proxy throwing.
+4. Sending a link produces exactly **one** `{click_id, params}` envelope — not
+   zero (listener attached too late) and not two (listener attached twice).
 
-`example/` deliberately has **no** `react-native-deeplinkly` dependency in its
-`package.json`. Adding one as `file:..` symlinks
-`example/node_modules/react-native-deeplinkly` to the repo root — and the repo
-root contains `example/`, so the path
+Point 4 is the one that exercises the design decision this bridge is built
+around, so it matters more than the rest.
 
+### Never alias a namespace-qualified codegen type
+
+In `src/NativeDeeplinkly.ts`, write `CodegenTypes.UnsafeObject` at every use
+site. **Do not** shorten it:
+
+```ts
+type UnsafeObject = CodegenTypes.UnsafeObject;   // sends codegen into an infinite loop
 ```
-example/node_modules/react-native-deeplinkly/example/node_modules/…
-```
 
-resolves forever. React Native's `generate-codegen-artifacts.js` walks the
-dependency tree recursively and hits that cycle, then **spins at 100% CPU
-indefinitely** rather than failing. Three such processes accumulated in one
-session (92, 76 and 65 minutes of CPU each), pushing load average past 40 and
-making every other build look mysteriously slow — a Gradle run stalled at
-`generateCodegenSchemaFromJavaScript` and a `pod install` sat at 0.33 s of CPU
-across 43 minutes, both simply starved and blocked on their own codegen child.
+`@react-native/codegen`'s TypeScript parser never terminates on that alias. It
+does not error — it **spins at 100% CPU forever**, so the symptom is never a
+failure message. What you see instead is a Gradle build parked at
+`generateCodegenSchemaFromJavaScript`, or a `pod install` that never returns
+while itself using almost no CPU, because both are blocked on a codegen child
+that will never finish.
 
-Resolution is instead:
+Four such processes accumulated in one session, 60–90 CPU-minutes each, pushing
+load average past 50 and making every unrelated build on the machine look
+mysteriously slow. That is the tell: *everything* is slow, not just this project.
 
-- **native / autolinking** — `example/react-native.config.js` declares the
-  dependency explicitly with `root` pointing at the repo. Autolinking supports a
-  `dependencies` entry for a package that is not in `node_modules`; that is what
-  the key is for.
-- **JavaScript** — `example/metro.config.js` maps the package name to the repo
-  root via `extraNodeModules`, alongside `watchFolders`.
+Bisected with three minimal specs — the alias spins; an inline
+`CodegenTypes.UnsafeObject` and a spec with no `UnsafeObject` at all both parse
+in about a second. The alias entered the repo while adapting to React Native
+0.80's move of `UnsafeObject` to the root `CodegenTypes` namespace, so it never
+worked at any point.
 
-If a build ever looks hung, check for `generate-codegen-artifacts` first:
+If a build looks hung, check this before anything else:
 
 ```bash
-ps -eo pid,etime,time,%cpu,command | grep "[g]enerate-codegen-artifacts"
+ps -eo pid,etime,time,%cpu,command | grep -E "[g]enerate-codegen-artifacts|[@]react-native/codegen"
 ```
 
-High `%cpu` with growing CPU time is this bug, not slow progress. Kill those
-processes; they never terminate on their own.
+Growing CPU time at ~100% is this bug, not slow progress. Those processes never
+terminate on their own; kill them.
+
+### The example *must* be installed into `example/node_modules`
+
+`example/package.json` depends on the library as `file:..`, which symlinks
+`example/node_modules/react-native-deeplinkly` to the repo root. Keep it.
+
+This does create a cycle — the repo root contains `example/`, so
+`example/node_modules/react-native-deeplinkly/example/node_modules/…` resolves
+forever — and removing the dependency was tried as a fix for the spin above. It
+is not the cause, and removing it **breaks iOS**: Android autolinking reads
+`react-native.config.js`, but iOS codegen discovers packages by scanning
+`node_modules` for `codegenConfig`. Without the symlink, `pod install` completes
+happily and silently generates no spec at all — no
+`build/generated/ios/ReactCodegen/RNDeeplinklySpec/`.
+
+Both mechanisms are therefore load-bearing and neither is redundant:
+
+- `example/react-native.config.js` — points Android autolinking at the repo root
+  so Gradle compiles the sources being edited.
+- `example/metro.config.js` — `watchFolders` plus a `blockList` for the root's own
+  `react` / `react-native` copies, so the bundle never gets two React instances.
 
 ### One `pod install` at a time
 
