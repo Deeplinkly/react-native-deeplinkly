@@ -49,10 +49,13 @@
     "ios",
     "android"
   ],
-  "repository": "https://github.com/deeplinkly/react-native-deeplinkly",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Deeplinkly/react-native-deeplinkly.git"
+  },
   "homepage": "https://deeplinkly.com",
   "bugs": {
-    "url": "https://github.com/deeplinkly/react-native-deeplinkly/issues"
+    "url": "https://github.com/Deeplinkly/react-native-deeplinkly/issues"
   },
   "author": "Deeplinkly <hello@deeplinkly.com>",
   "license": "MIT",
