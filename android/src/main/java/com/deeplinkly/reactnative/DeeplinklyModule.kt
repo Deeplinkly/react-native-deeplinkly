@@ -15,7 +15,6 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
-import com.facebook.react.modules.core.DeviceEventManagerModule
 
 /**
  * React Native bridge over the Deeplinkly Android SDK.
@@ -289,10 +288,14 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   override fun removeListeners(count: Double) = Unit
 
+  /**
+   * `emitDeviceEvent` rather than `getJSModule(RCTDeviceEventEmitter)`: it is the
+   * supported entry point in both bridge and bridgeless modes — bridgeless is the
+   * default from React Native 0.74 — and it null-checks the emitter instead of
+   * throwing when the JS side is not up.
+   */
   private fun emitLink(raw: Map<String, Any?>) {
-    reactApplicationContext
-      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-      .emit(LINK_EVENT, Arguments.makeNativeMap(raw))
+    reactApplicationContext.emitDeviceEvent(LINK_EVENT, Arguments.makeNativeMap(raw))
   }
 
   // -- helpers ----------------------------------------------------------------

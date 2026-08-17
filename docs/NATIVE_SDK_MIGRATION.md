@@ -81,6 +81,11 @@ one intentional divergence in observable behaviour between the two bridges.
 Flutter plugin forwards `onLifecycleChange` from Dart; mirroring that through
 `AppState` would miss every transition occurring before the bundle is running.
 
+**Android emits through `reactApplicationContext.emitDeviceEvent`**, not
+`getJSModule(RCTDeviceEventEmitter)`. The latter is the bridge-era call; bridgeless
+has been the default since React Native 0.74. `emitDeviceEvent` is supported in
+both modes and null-checks the emitter rather than throwing when JS is not up.
+
 **iOS link delivery requires host AppDelegate wiring, and cannot be avoided.**
 The Flutter plugin calls `registrar.addApplicationDelegate(self)` and a dynamic
 `addSceneDelegate:`. React Native gives a native module no access to
@@ -117,9 +122,11 @@ arrive one at a time and each would otherwise construct and discard a control.
 ## Not verified
 
 Anything marked here was not observed passing and should not be assumed.
+**Nothing has been run yet** — every claim above is a compile-time result.
 
 - Runtime behaviour on device or simulator: no link has been driven end to end
-  through this bridge yet.
+  through this bridge yet, and the iOS app has never been built (see the open
+  risk below).
 - The paste button has not been rendered. `UIPasteControl` needs iOS 16+ and a
   real pasteboard interaction to exercise.
 - The legacy architecture has been compiled but not run. React Native 0.87 may
@@ -129,6 +136,29 @@ Anything marked here was not observed passing and should not be assumed.
   dashboard-registered fingerprint.
 - Objective-C AppDelegate integration. The `__has_include` pair for framework vs
   static-library linkage is written from the documented behaviour, not tested.
+
+## Open risk — iOS module resolution on the new architecture
+
+**This is the one thing most likely to be wrong, and it is unresolved.**
+
+`useTurboModuleInterop()` returns `false` by default in React Native 0.87
+(`ReactCommon/react/featureflags/ReactNativeFeatureFlagsDefaults.h`). The iOS
+module is a Swift `RCTEventEmitter` exported with `RCT_EXTERN_MODULE`, i.e. a
+legacy native module — so on the new architecture it is not automatically
+bridged into the TurboModule registry by that flag.
+
+Whether it resolves anyway depends on codegen's generated module providers.
+`pod install` writes `example/ios/build/generated/ios/RCTModuleProviders.mm`;
+check whether `RNDeeplinkly` appears in it. If it does, bridgeless constructs the
+module and this is fine.
+
+If it does **not** resolve, the fix is an ObjC++ shim conforming to the
+codegen'd `NativeDeeplinklySpec` and forwarding into the Swift implementation —
+*not* asking host apps to flip a feature flag, which a library has no business
+requiring. That reverses the "RCT_EXTERN_MODULE is enough" decision recorded
+above, so update that section too.
+
+Android is unaffected: it uses the codegen'd spec directly via `src/newarch`.
 
 ## Environment notes
 
@@ -149,9 +179,52 @@ The example reuses the API key and link domain (`example.deeplinkly.com`) from
 example's `Info.plist` still carries a `YOUR_API_KEY_HERE` placeholder — the real
 key was only ever in its Android manifest.
 
+## Resume here
+
+Picking this up cold, in order:
+
+```bash
+cd ~/StudioProjects/react_native_deeplinkly
+
+# 1. Confirm the JS layer still builds.
+npx tsc --noEmit && npx bob build
+
+# 2. Android — expect BUILD SUCCESSFUL on both.
+cd example/android
+./gradlew :react-native-deeplinkly:assembleDebug
+./gradlew :react-native-deeplinkly:assembleDebug -PnewArchEnabled=false
+
+# 3. iOS — this had not completed when the work paused.
+cd ../ios && pod install
+grep -n RNDeeplinkly build/generated/ios/RCTModuleProviders.mm   # see open risk
+xcodebuild -workspace DeeplinklyExample.xcworkspace \
+  -scheme DeeplinklyExample -configuration Debug -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,name=iPhone 17' build
+
+# 4. Run, then drive a link on each platform.
+cd .. && npm run ios      # and: npm run android
+xcrun simctl openurl booted "deeplinkly://open?screen=home"
+adb shell am start -W -a android.intent.action.VIEW -d "deeplinkly://open?screen=home"
+```
+
+The example app's UI logs every call and every received link, so step 4 is the
+whole runtime check: press each button, then send a link and confirm one
+`{click_id, params}` envelope arrives.
+
+**Never run two `pod install`s against this project at once.** CocoaPods takes no
+lock; two concurrent runs wedge each other silently at a partial `Pods/` and make
+no further progress. If it looks hung, check for more than one
+`libexec/bin/pod install` process, kill all of them, `rm -rf Pods Podfile.lock`,
+and start one.
+
+The Android emulator is `Pixel_10_Pro`; iOS simulators include `iPhone 17`.
+`example/android/local.properties` is gitignored and must be recreated with
+`sdk.dir=$HOME/Library/Android/sdk`.
+
 ## Open items
 
-1. Run the example on simulator and emulator; drive a link end to end.
+1. Settle the iOS new-architecture resolution question above, then build and run
+   the example on simulator and emulator and drive a link end to end.
 2. Render and tap the paste button on an iOS 16+ device.
 3. Unit tests. Android has a Robolectric suite in `flutter_deeplinkly` worth
    mirroring for the gate and the listener-attach discipline.
