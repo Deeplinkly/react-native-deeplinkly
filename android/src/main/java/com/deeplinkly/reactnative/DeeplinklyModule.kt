@@ -21,9 +21,9 @@ import com.facebook.react.module.annotations.ReactModule
  *
  * A bridge, not an implementation: resolution, the install referrer,
  * attribution, queues, retries, device signals and networking all live in
- * `com.deeplinkly:deeplinkly-android`, shared with the standalone native SDK and
- * the Flutter plugin. Method names mirror `FlutterDeeplinklyPlugin`'s method
- * channel so the two bridges drive identical entry points.
+ * `com.deeplinkly:deeplinkly-android`, shared with every other Deeplinkly
+ * integration. Method names mirror the SDK's own entry points so all of them
+ * drive identical code.
  *
  * Every SDK callback already arrives on the main thread (`SdkRuntime.postToMain`),
  * so nothing here needs `UiThreadUtil`.
@@ -40,31 +40,39 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
   private var jsIsReady = false
 
   /**
+   * Whether the cold-start launch intent has been handed to the SDK. One-way,
+   * for the life of this module instance. See [onHostResume].
+   */
+  private var launchCaptured = false
+
+  /**
    * One instance, attached and detached rather than rebuilt, so a re-attach
    * cannot leave two of these delivering the same link.
    *
    * `raw` is forwarded unchanged so the JS envelope stays exactly
-   * `{click_id, params}` — the same envelope Dart receives.
+   * `{click_id, params}`, identical on both platforms.
    */
   private val deepLinkListener = DeeplinklyDeepLinkListener { link ->
     emitLink(link.raw)
   }
 
   init {
-    // `autoCaptureLaunchIntents` is left at its default `true`, unlike the
-    // Flutter plugin which passes `false`.
+    // `autoCaptureLaunchIntents = false`, because the SDK's automatic capture
+    // cannot work from a React Native module.
     //
-    // Flutter can afford `false` because `ActivityAware.onAttachedToActivity`
-    // is a precise once-per-launch signal it can hang `onActivityLaunch` off.
-    // React Native has no equivalent — `onHostResume` fires on *every*
-    // foreground, so replaying the launch intent from there would re-resolve
-    // the deep link and fire attribution again on every app switch. Letting the
-    // SDK's own `ActivityLifecycleCallbacks` capture cold starts via
-    // `onActivityCreated` is the correct analogue here.
+    // It registers `ActivityLifecycleCallbacks` inside `init` and reads the
+    // launch intent from `onActivityCreated`. This module is constructed while
+    // React Native evaluates the JS bundle — long after `MainActivity.onCreate`
+    // has returned — so those callbacks are registered too late to ever see the
+    // launch activity, and `onActivityResumed` does nothing. Leaving capture on
+    // therefore drops every cold-start link, with no error anywhere.
+    //
+    // [onHostResume] drives `onActivityLaunch` once instead. See it for why
+    // once-per-instance is what makes this safe.
     //
     // Reads the API key from `com.deeplinkly.sdk.api_key` manifest meta-data.
     // Idempotent; a second call is ignored.
-    Deeplinkly.init(reactContext.applicationContext)
+    Deeplinkly.init(reactContext.applicationContext, autoCaptureLaunchIntents = false)
 
     reactContext.addActivityEventListener(this)
     reactContext.addLifecycleEventListener(this)
@@ -82,8 +90,7 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
    * from its persistent queue as soon as `onDeepLink` returns without throwing,
    * and emitting to `RCTDeviceEventEmitter` with no JS subscriber **succeeds
    * silently** — so attaching before JS is listening would lose the link
-   * permanently. This is the same trap the Flutter plugin documents against
-   * `invokeMethod` on an unhandled channel.
+   * permanently, with no error on either side.
    */
   @ReactMethod
   override fun jsReady(promise: Promise) {
@@ -137,8 +144,7 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
     if (!requireEnabled(promise, disabledResult())) return
 
     // Flat-merged and passed straight through, so whatever the JS models
-    // produced reaches the backend unaltered. Options win on key collision,
-    // matching the Flutter bridge.
+    // produced reaches the backend unaltered. Options win on key collision.
     val payload = HashMap<String, Any?>().apply {
       putAll(content.toHashMap())
       putAll(options.toHashMap())
@@ -146,7 +152,7 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
 
     Deeplinkly.generateLink(payload) { generated ->
       // Null fields are omitted rather than sent as null, so JS sees the same
-      // shape Dart does.
+      // shape every other Deeplinkly integration does.
       promise.resolve(
         Arguments.createMap().apply {
           putBoolean("success", generated.success)
@@ -162,9 +168,9 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
 
   /**
    * Parameters are forwarded raw. Validation lives in the SDK's
-   * `DeeplinklyEvent.validate` rather than here, so a native-only integration,
-   * the Flutter plugin and this bridge all give the same answer for the same
-   * event. Pre-checking here is how that guarantee would rot.
+   * `DeeplinklyEvent.validate` rather than here, so a native-only integration and
+   * this bridge give the same answer for the same event. Pre-checking here is how
+   * that guarantee would rot.
    */
   @ReactMethod
   override fun logEvent(eventName: String, parameters: ReadableMap, promise: Promise) {
@@ -254,12 +260,37 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
 
   // -- LifecycleEventListener -------------------------------------------------
 
+  /**
+   * Also the cold-start hook, exactly once.
+   *
+   * `onActivityLaunch` reads the activity's launch intent, checks the Play
+   * install referrer and drains the retry queues — the work the SDK would have
+   * done from `onActivityCreated` had this module existed by then. Nothing else
+   * recovers a cold-start link: [onNewIntent] only fires for warm starts, so
+   * without this a link tapped while the app was not running is lost.
+   *
+   * Once per module instance, not once per resume. `onHostResume` fires on every
+   * foreground, and re-running this on each one would re-resolve the launch
+   * intent and re-report attribution on every app switch. The SDK's own
+   * `EXTRA_CONSUMED` guard stops most of that, but it is set on the `Intent`
+   * instance, so it does not survive the activity being recreated across a
+   * configuration change. The flag makes the replay impossible rather than merely
+   * unlikely.
+   *
+   * Ordering against [jsReady] does not matter: a link resolved before JS
+   * subscribes is held in the SDK's persistent queue, and the
+   * `setDeepLinkListener` above drains it on attach.
+   */
   override fun onHostResume() {
     if (!Deeplinkly.isEnabled) return
     // Re-attaching is idempotent — there is one listener slot and setting it
     // overwrites — and it re-drains anything that queued while backgrounded.
     if (jsIsReady) {
       Deeplinkly.setDeepLinkListener(deepLinkListener)
+    }
+    if (!launchCaptured) {
+      launchCaptured = true
+      reactApplicationContext.currentActivity?.let { Deeplinkly.onActivityLaunch(it) }
     }
     Deeplinkly.onForeground()
   }
@@ -311,12 +342,11 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
   /**
    * Resolves [disabledValue] and returns false when the SDK has no API key.
    *
-   * Each caller passes its own correctly-typed failure value rather than the
-   * single `SDK_DISABLED` envelope the Flutter bridge returns from everything.
-   * Dart gets away with that because `invokeMethod<bool>` throws on the
-   * unexpected map and the Dart wrapper catches it into `false`; a typed
-   * TurboModule cannot resolve a map where it declared a boolean.
-   * [isAvailable] is how a host distinguishes "no API key" from "call failed".
+   * Each caller passes its own correctly-typed failure value rather than one
+   * shared `SDK_DISABLED` envelope: a typed TurboModule cannot resolve a map
+   * where it declared a boolean, so the envelope would break the contract for
+   * every method that does not return an object. [isAvailable] is how a host
+   * distinguishes "no API key" from "call failed".
    */
   private fun requireEnabled(promise: Promise, disabledValue: Any?): Boolean {
     if (Deeplinkly.isEnabled) return true

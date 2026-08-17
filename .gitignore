@@ -7,7 +7,7 @@ ios/build/
 ios/Pods/
 ios/*.xcworkspace
 *.xcuserdatad/
-
+.env
 # Android
 android/build/
 android/.gradle/
@@ -30,3 +30,10 @@ example/ios/build/
 example/android/build/
 example/android/app/build/
 example/android/local.properties
+
+# API keys. Never committed — the example reads its key from here at build time.
+# See docs/NATIVE_SDK_MIGRATION.md.
+deeplinkly.properties
+**/deeplinkly.properties
+Deeplinkly.local.plist
+**/Deeplinkly.local.plist

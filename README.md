@@ -9,18 +9,17 @@ Full documentation: [**docs/REACT_NATIVE_SDK.md**](docs/REACT_NATIVE_SDK.md).
 
 A bridge, not an implementation. Deep link resolution, the install referrer,
 attribution, queues, retries, device signals and networking all live in the
-native SDKs, shared with the standalone Android/iOS SDKs and the Flutter plugin:
+native SDKs, shared with every other Deeplinkly integration:
 
 | Layer   | Artifact                                  |
 | ------- | ----------------------------------------- |
 | Android | `com.deeplinkly:deeplinkly-android:1.1.1` |
 | iOS     | pod `Deeplinkly`, `1.0.1`                 |
 
-Native method names match `flutter_deeplinkly`'s method channel one-for-one, so
-the bridges drive identical entry points and cannot drift. Event and link
-validation is enforced natively rather than in JavaScript, so a native-only
-integration, the Flutter plugin and this package all answer the same for the same
-input.
+Native method names match the SDKs' own entry points one-for-one, so no
+integration can drift from another. Event and link validation is enforced natively
+rather than in JavaScript, so a native-only integration and this package answer
+the same for the same input.
 
 Supports both the new and legacy React Native architectures.
 
@@ -39,9 +38,9 @@ Two things the docs cover that are easy to miss:
   the classpath entry must be versioned explicitly. The native SDK's metadata is
   unreadable by the 2.0.21 compiler React Native's template resolves. The build
   fails with instructions if this is wrong.
-- **iOS** requires forwarding links from your `AppDelegate`. React Native has no
-  equivalent of Flutter's automatic app-delegate registration, and its template
-  ships no linking support, so **without this no deep link reaches the SDK**. See
+- **iOS** requires forwarding links from your `AppDelegate`. A React Native native
+  module cannot receive app-delegate callbacks, and the template ships no linking
+  support, so **without this no deep link reaches the SDK**. See
   [Forward links from your AppDelegate](docs/REACT_NATIVE_SDK.md#forward-links-from-your-appdelegate).
 
 ## Quickstart
@@ -144,15 +143,19 @@ npm run ios      # or: npm run android
 The example depends on the library as `file:..` and additionally points Android
 autolinking at the repo root through `react-native.config.js`. Both are needed —
 iOS codegen finds the package by scanning `node_modules`, Android autolinking by
-reading the config — so do not remove either. See
-[docs/NATIVE_SDK_MIGRATION.md](docs/NATIVE_SDK_MIGRATION.md#the-example-must-be-installed-into-examplenode_modules).
+reading the config — so do not remove either.
 
-Send it a test link:
+Send it a real link. Generate one with `generateLink`, then open it:
 
 ```bash
-xcrun simctl openurl booted "deeplinkly://open?screen=home"
-adb shell am start -W -a android.intent.action.VIEW -d "deeplinkly://open?screen=home"
+xcrun simctl openurl booted "https://<your-link-domain>/<code>"
+adb shell "am start -W -a android.intent.action.VIEW \
+  -d 'https://<your-link-domain>/<code>' -p com.deeplinklyexample"
 ```
+
+A URL with no `click_id` and no Deeplinkly short code is skipped by design, so
+`deeplinkly://open?screen=home` will never deliver anything — use a generated
+link.
 
 ## Layout
 
@@ -165,7 +168,7 @@ android/src/{newarch,oldarch}/…  per-architecture superclass
 ios/RNDeeplinkly.swift      module
 ios/RNDeeplinklyLinking.swift    AppDelegate forwarding entry points
 ios/DeeplinklyPasteButton*  UIPasteControl view + manager
-docs/                       full reference, signals catalogue, handoff notes
+docs/                       full reference, signals catalogue
 ```
 
 ## License

@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JS — typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:ci
+
+      - name: Build the publishable output
+        run: npx bob build
+
+      # Guards the "nothing internal ships" rule. Runs after the build so lib/
+      # exists to be audited.
+      - name: Audit the publishable tarball
+        run: npm run pack:audit
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: js-coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+  android:
+    name: Android — unit tests, both architectures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install root dependencies
+        run: npm ci
+
+      # The example app is how the library gets built: its Gradle project
+      # includes this one through example/react-native.config.js, and the
+      # `file:..` dependency is what iOS codegen discovery needs too. Both are
+      # load-bearing — see docs/NATIVE_SDK_MIGRATION.md.
+      - name: Install example dependencies
+        working-directory: example
+        run: npm install
+
+      - name: Accept Android SDK licences
+        run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      # No API key in CI, deliberately. The build must survive its absence, and
+      # the SDK then reports isAvailable() == false — exactly what a host with a
+      # missing manifest entry sees.
+      - name: Unit tests (new architecture)
+        working-directory: example/android
+        run: ./gradlew :react-native-deeplinkly:testDebugUnitTest
+
+      - name: Unit tests (legacy architecture)
+        working-directory: example/android
+        run: ./gradlew :react-native-deeplinkly:testDebugUnitTest -PnewArchEnabled=false --rerun-tasks
+
+      # Compiling both source sets is what proves the architecture switch really
+      # switches: the legacy build emits no codegen output and compiles the
+      # hand-written spec instead.
+      - name: Compile library (legacy architecture)
+        working-directory: example/android
+        run: ./gradlew :react-native-deeplinkly:assembleDebug -PnewArchEnabled=false
+
+      - name: Assemble the example app
+        working-directory: example/android
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: android/build/reports/tests/
+          if-no-files-found: ignore
+
+  ios:
+    name: iOS — build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install example dependencies
+        working-directory: example
+        run: npm install
+
+      - name: pod install
+        working-directory: example/ios
+        run: pod install
+
+      # Codegen discovers packages by scanning node_modules for codegenConfig, so
+      # a missing spec here means the example/node_modules symlink broke rather
+      # than that the source is wrong. Fail loudly instead of building something
+      # that silently has no TurboModule spec.
+      - name: Verify codegen produced the spec
+        working-directory: example/ios
+        run: |
+          test -d build/generated/ios/ReactCodegen/RNDeeplinklySpec \
+            || { echo "::error::codegen produced no RNDeeplinklySpec — check the example/node_modules symlink"; exit 1; }
+
+      - name: Build for the simulator
+        working-directory: example/ios
+        run: |
+          xcodebuild \
+            -workspace DeeplinklyExample.xcworkspace \
+            -scheme DeeplinklyExample \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            build \
+            CODE_SIGNING_ALLOWED=NO

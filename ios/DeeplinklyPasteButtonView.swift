@@ -17,8 +17,7 @@ import UIKit
 
  iOS 16+. Below that the view stays empty and JS renders its `fallback`.
 
- Ported from the Flutter plugin's `PasteControlFactory`, and uses only public
- SDK API (`Deeplinkly.handlePaste`).
+ Uses only public SDK API (`Deeplinkly.handlePaste`).
  */
 final class DeeplinklyPasteButtonView: UIView {
 

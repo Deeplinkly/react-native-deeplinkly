@@ -6,10 +6,9 @@ import React
  React Native bridge over the Deeplinkly iOS SDK.
 
  A bridge, not an implementation: resolution, attribution, the pasteboard path,
- queues, retries, device signals and networking all live in the `Deeplinkly`
- pod, shared with the standalone native SDK and the Flutter plugin. Method names
- mirror `FlutterDeeplinklyPlugin`'s method channel so the two bridges drive
- identical entry points.
+ queues, retries, device signals and networking all live in the `Deeplinkly` pod,
+ shared with every other Deeplinkly integration. Method names mirror the SDK's own
+ entry points so all of them drive identical code.
 
  `Deeplinkly` is a caseless enum — a static namespace, not a singleton — so
  every call below is `Deeplinkly.foo()` rather than `Deeplinkly.shared.foo()`.
@@ -53,7 +52,7 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
   // MARK: - listener attachment
 
   /**
-   React Native's exact analogue of the Flutter plugin's `flutterReady`.
+   The point at which JS is known to be listening.
 
    `startObserving` fires on the first `addListener` from JS, which is the
    earliest moment a delivered link can actually be received. Attaching sooner
@@ -94,9 +93,9 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
 
   // MARK: - DeeplinklyDeepLinkListener
 
-  /// Forwarded unchanged, so the JS envelope stays exactly `{click_id, params}`
-  /// — the same envelope Dart receives. `click_id` may be `NSNull`, which
-  /// bridges to `null` in JS.
+  /// Forwarded unchanged, so the JS envelope stays exactly `{click_id, params}`,
+  /// identical on both platforms. `click_id` may be `NSNull`, which bridges to
+  /// `null` in JS.
   func onDeepLink(_ payload: [String: Any]) {
     // Already on the main thread; SdkRuntime guarantees it.
     sendEvent(withName: Self.linkEvent, body: payload)
@@ -166,8 +165,7 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
     guard Deeplinkly.isEnabled else { return resolve(Self.disabledResult) }
 
     // Flat-merged and passed straight through, so whatever the JS models
-    // produced reaches the backend unaltered. Options win on key collision,
-    // matching the Flutter bridge.
+    // produced reaches the backend unaltered. Options win on key collision.
     var payload = (content as? [String: Any]) ?? [:]
     for (key, value) in (options as? [String: Any]) ?? [:] {
       payload[key] = value
@@ -182,9 +180,8 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
 
   /**
    Parameters are forwarded raw. Validation lives in the SDK's `DeeplinklyEvent`
-   rather than here, so a native-only integration, the Flutter plugin and this
-   bridge all give the same answer for the same event. Pre-checking here is how
-   that guarantee would rot.
+   rather than here, so a native-only integration and this bridge give the same
+   answer for the same event. Pre-checking here is how that guarantee would rot.
    */
   @objc(logEvent:parameters:resolve:reject:)
   func logEvent(
@@ -292,11 +289,10 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
   /**
    The disabled-SDK value for `generateLink`.
 
-   Each method resolves its own correctly-typed failure value rather than the
-   single `SDK_DISABLED` envelope the Flutter bridge returns from everything.
-   Dart gets away with that because `invokeMethod<bool>` throws on the
-   unexpected map and its wrapper catches it into `false`; a typed TurboModule
-   cannot resolve a map where it declared a boolean. `isAvailable` is how a host
+   Each method resolves its own correctly-typed failure value rather than one
+   shared `SDK_DISABLED` envelope: a typed TurboModule cannot resolve a map where
+   it declared a boolean, so the envelope would break the contract for every
+   method that does not return an object. `isAvailable` is how a host
    distinguishes "no API key" from "call failed".
    */
   private static let disabledResult: [String: Any] = [

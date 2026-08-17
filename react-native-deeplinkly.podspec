@@ -26,8 +26,7 @@ Pod::Spec.new do |s|
 
   # The SDK itself. Everything below the bridge — resolution, attribution, the
   # pasteboard path, queues, retries, device signals, networking — lives here and
-  # is shared with the native iOS SDK and the Flutter plugin, so the three can
-  # never drift.
+  # is shared with every other Deeplinkly integration, so none of them can drift.
   s.dependency "Deeplinkly", "1.0.1"
 
   # Pulls in React-Core plus, on the new architecture, the codegen'd spec and

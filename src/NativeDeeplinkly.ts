@@ -12,10 +12,10 @@ import { NativeModules, TurboModuleRegistry } from 'react-native';
 /**
  * Codegen spec for the native module.
  *
- * Method names match the Flutter plugin's method channel exactly, so the two
- * bridges drive the same native entry points and can never drift. Everything
- * below this file — resolution, the install referrer, attribution, queues,
- * retries, device signals, networking — lives in the native SDKs
+ * Method names match the native SDKs' entry points exactly, so every Deeplinkly
+ * integration drives the same code and none of them can drift. Everything below
+ * this file — resolution, the install referrer, attribution, queues, retries,
+ * device signals, networking — lives in the native SDKs
  * (`com.deeplinkly:deeplinkly-android`, pod `Deeplinkly`).
  *
  * Object payloads are `UnsafeObject` because the link metadata and event

@@ -23,11 +23,23 @@ const LINK_EVENT = 'DeeplinklyDidResolveLink';
 // both platforms; Android's old-architecture path ignores the argument.
 // TurboModuleRegistry hands back the NativeModules proxy when the new
 // architecture is off, so this is the same object either way.
-const emitter = new NativeEventEmitter(
-  NativeDeeplinkly as unknown as ConstructorParameters<
-    typeof NativeEventEmitter
-  >[0]
-);
+//
+// Built on first use, not at module scope. `NativeEventEmitter`'s constructor
+// probes the module for `addListener`/`removeListeners`, and when the native
+// module is missing those reads hit the throwing proxy from
+// `NativeDeeplinkly.ts` — so constructing eagerly raised the not-linked error on
+// *import*, taking the bundle down before a host could call `isAvailable()` to
+// find out why. That defeated the deferral the proxy exists to provide.
+let emitter: NativeEventEmitter | undefined;
+
+function getEmitter(): NativeEventEmitter {
+  emitter ??= new NativeEventEmitter(
+    NativeDeeplinkly as unknown as ConstructorParameters<
+      typeof NativeEventEmitter
+    >[0]
+  );
+  return emitter;
+}
 
 /** Unsubscribe handle returned by {@link Deeplinkly.addListener}. */
 export interface Subscription {
@@ -59,7 +71,7 @@ export const Deeplinkly = {
     // NativeEventEmitter types its payload as `Object`, so the envelope's shape
     // is asserted here rather than at every call site. The native side builds it
     // — see DeeplinklyLink.
-    const sub = emitter.addListener(LINK_EVENT, (payload) =>
+    const sub = getEmitter().addListener(LINK_EVENT, (payload) =>
       handler(payload as unknown as DeeplinklyLink)
     );
 
