@@ -51,10 +51,10 @@ import Deeplinkly from 'react-native-deeplinkly';
 
 // Links that resolved before this ran are queued natively and delivered on
 // subscribe, so a cold start from a link does not race the JS bundle.
-const sub = Deeplinkly.addListener((link) => {
-  if (link['+clicked_deeplinkly_link']) {
-    navigate(link.screen as string);
-  }
+const sub = Deeplinkly.addListener(({ click_id, params }) => {
+  // click_id is null when the backend did not recognise the click; params
+  // still carries the link's own parameters, read off the URL in that case.
+  navigate(params.screen as string);
 });
 
 // later

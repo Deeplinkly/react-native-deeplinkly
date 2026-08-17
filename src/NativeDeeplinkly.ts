@@ -1,5 +1,5 @@
 import type { TurboModule } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
+import { NativeModules, TurboModuleRegistry } from 'react-native';
 import type { UnsafeObject } from 'react-native/Libraries/Types/CodegenTypes';
 
 /**
@@ -21,8 +21,23 @@ export interface Spec extends TurboModule {
   /**
    * Tell native the JS layer is listening. Deep links that arrived before
    * this are queued natively and flushed on this call.
+   *
+   * This is load-bearing, not a formality. The native SDKs drop a link from
+   * their queue once delivery returns without throwing, and emitting an event
+   * that no JS listener has subscribed to succeeds *silently* — so attaching
+   * the native listener any earlier than this would lose the link for good.
    */
   jsReady(): Promise<void>;
+
+  /**
+   * Whether the SDK found an API key and initialised.
+   *
+   * False means the key is missing from the Android manifest or `Info.plist`.
+   * Every other method still answers while disabled — with its documented
+   * failure value — so this is how an app tells "misconfigured" apart from
+   * "configured, and the call failed".
+   */
+  isAvailable(): Promise<boolean>;
 
   // -- identity -------------------------------------------------------------
 
@@ -78,4 +93,27 @@ export interface Spec extends TurboModule {
   removeListeners(count: number): void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('RNDeeplinkly');
+const MISSING =
+  "react-native-deeplinkly: the native module is not linked. Rebuild the app after installing — a JS reload will not pick up native code. On iOS, run `pod install` first.";
+
+// `get`, not `getEnforcing`. On the old architecture TurboModuleRegistry has
+// nothing to hand back, so `getEnforcing` throws; falling back to NativeModules
+// keeps one import path working under both architectures.
+//
+// When neither resolves, the failure is deferred to first *use* rather than
+// raised at import. Throwing here would take down the bundle on import alone,
+// which is a miserable way to learn that a pod install was missed — and it
+// would fire before an app could call `isAvailable()` to check.
+const resolved =
+  TurboModuleRegistry.get<Spec>('RNDeeplinkly') ??
+  (NativeModules.RNDeeplinkly as Spec | undefined);
+
+const NativeDeeplinkly: Spec =
+  resolved ??
+  (new Proxy({} as Spec, {
+    get() {
+      throw new Error(MISSING);
+    },
+  }) as Spec);
+
+export default NativeDeeplinkly;

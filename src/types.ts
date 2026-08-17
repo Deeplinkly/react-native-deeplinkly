@@ -72,13 +72,23 @@ export interface DeeplinklyResult {
 /**
  * A resolved deep link, delivered to {@link Deeplinkly.addListener}.
  *
- * The shape is whatever the link carried, so it is deliberately open. The
- * `+clicked_deeplinkly_link` and `+is_first_session` keys are always present.
+ * The envelope is identical on both platforms and identical to the one the
+ * Flutter plugin delivers — the native SDKs build it, and the bridge forwards
+ * it unchanged.
  */
-export type DeeplinklyLinkEvent = Record<string, unknown> & {
-  '+clicked_deeplinkly_link'?: boolean;
-  '+is_first_session'?: boolean;
-};
+export interface DeeplinklyLink {
+  /**
+   * The click this link resolved to, or `null` when the backend did not
+   * recognise it. The key is always present; only its value may be null.
+   */
+  click_id: string | null;
+
+  /**
+   * The link's own parameters — from the backend when it could be reached, and
+   * from the URL itself when it could not, so one read path covers both.
+   */
+  params: Record<string, unknown>;
+}
 
 /** Parameter values accepted by {@link Deeplinkly.logEvent}. */
 export type EventParameterValue =

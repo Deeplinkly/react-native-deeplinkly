@@ -3,7 +3,7 @@ import NativeDeeplinkly from './NativeDeeplinkly';
 import type {
   AttributionLevel,
   DeeplinklyContent,
-  DeeplinklyLinkEvent,
+  DeeplinklyLink,
   DeeplinklyLinkOptions,
   DeeplinklyResult,
   EventParameterValue,
@@ -50,9 +50,7 @@ export const Deeplinkly = {
    * attached are queued natively and delivered on subscribe, so a cold start
    * from a link does not race the JS bundle.
    */
-  addListener(
-    handler: (link: DeeplinklyLinkEvent) => void
-  ): Subscription {
+  addListener(handler: (link: DeeplinklyLink) => void): Subscription {
     const sub = emitter.addListener(LINK_EVENT, handler);
 
     if (!readySignalled) {
@@ -61,6 +59,22 @@ export const Deeplinkly = {
     }
 
     return sub;
+  },
+
+  /**
+   * Whether the SDK found an API key and initialised.
+   *
+   * False means the key is missing from `AndroidManifest.xml` or `Info.plist`.
+   * Every other method still answers while disabled — with its documented
+   * failure value — so this is how you tell a misconfigured build apart from a
+   * call that simply failed. Worth asserting once on a debug build.
+   */
+  async isAvailable(): Promise<boolean> {
+    try {
+      return await NativeDeeplinkly.isAvailable();
+    } catch {
+      return false;
+    }
   },
 
   /** Stable Deeplinkly device id for this install. Empty string on failure. */
