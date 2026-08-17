@@ -1,0 +1,78 @@
+buildscript {
+    ext.kotlin_version = "2.2.0"
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.7.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+
+// The React Native Gradle plugin drives codegen for the TurboModule spec in
+// src/NativeDeeplinkly.ts. Without it the generated RNDeeplinklySpec interface
+// this module implements does not exist and the build fails to compile.
+apply plugin: "com.facebook.react"
+
+group = "com.deeplinkly.reactnative"
+version = new groovy.json.JsonSlurper().parse(file("../package.json")).version
+
+repositories {
+    google()
+    mavenCentral()
+    // Opt-in seam for developing this bridge against an unreleased native SDK:
+    // run `./gradlew publishToMavenLocal` in android_deeplinkly, then build with
+    // -Pdeeplinkly.useMavenLocal=true. Off by default, because a machine-local
+    // artifact silently shadowing a real one is exactly the kind of
+    // irreproducible build nobody wants to debug.
+    if (project.findProperty("deeplinkly.useMavenLocal") == "true") {
+        mavenLocal()
+    }
+}
+
+android {
+    namespace = "com.deeplinkly.reactnative"
+    compileSdk = 35
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main.java.srcDirs += "src/main/java"
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    implementation "com.facebook.react:react-android"
+
+    // The SDK itself. Everything below the bridge — deep link resolution, the
+    // install referrer, attribution, the queues, retries, device signals,
+    // networking — lives here and is shared with the native Android SDK and the
+    // Flutter plugin, so the three can never drift.
+    //
+    // `api`, not `implementation`: a host app that wants to call Deeplinkly
+    // directly (to log an event from native code alongside JS, say) can, without
+    // re-declaring the dependency.
+    //
+    // Its transitive dependencies are deliberately NOT repeated here —
+    // installreferrer, play-services-appset, coroutines and core-ktx, plus the
+    // compileOnly treatment of play-services-ads-identifier that keeps the AD_ID
+    // permission out of host manifests.
+    api "com.deeplinkly:deeplinkly-android:1.1.1"
+}

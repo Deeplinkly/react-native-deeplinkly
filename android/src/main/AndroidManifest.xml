@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Permissions and the install-referrer receiver arrive transitively from
+      com.deeplinkly:deeplinkly-android. Nothing is declared here on purpose:
+      a second copy of a manifest entry is a copy that goes stale.
+    -->
+</manifest>

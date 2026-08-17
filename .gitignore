@@ -1,0 +1,25 @@
+node_modules/
+lib/
+coverage/
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+*.xcuserdatad/
+
+# Android
+android/build/
+android/.gradle/
+android/local.properties
+.cxx/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Codegen output — regenerated on every build
+android/generated/
+ios/generated/
