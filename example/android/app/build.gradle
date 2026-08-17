@@ -72,6 +72,26 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * The Deeplinkly API key, read from the gitignored example/android/deeplinkly.properties
+ * and injected into AndroidManifest.xml rather than written there directly — a
+ * committed manifest is a published key.
+ *
+ * Absent, the build still succeeds and the SDK reports isAvailable() == false,
+ * which is the same signal a real host gets from a missing manifest entry.
+ */
+def deeplinklyApiKey = ""
+def deeplinklyPropsFile = rootProject.file("deeplinkly.properties")
+if (deeplinklyPropsFile.exists()) {
+    def deeplinklyProps = new Properties()
+    deeplinklyPropsFile.withInputStream { deeplinklyProps.load(it) }
+    deeplinklyApiKey = deeplinklyProps.getProperty("DEEPLINKLY_API_KEY", "").trim()
+}
+if (deeplinklyApiKey.isEmpty()) {
+    logger.warn("Deeplinkly: no API key. Create example/android/deeplinkly.properties " +
+        "with DEEPLINKLY_API_KEY=<key>; isAvailable() will return false until you do.")
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -84,6 +104,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // put(), not `manifestPlaceholders = [...]`: the React Native gradle
+        // plugin injects usesCleartextTraffic into the same map per variant, and
+        // assigning a fresh map would drop it.
+        manifestPlaceholders.put("deeplinklyApiKey", deeplinklyApiKey)
     }
     signingConfigs {
         debug {

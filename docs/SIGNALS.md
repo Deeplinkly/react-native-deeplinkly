@@ -1,6 +1,6 @@
 <!-- GENERATED FILE — do not edit. -->
-<!-- Source of truth: flutter_deeplinkly/tool/signals.json (shared catalogue). -->
-<!-- Regenerate there with `dart run tool/gen_signals.dart`, then copy here. -->
+<!-- Generated from Deeplinkly's shared signal catalogue; regenerate at the
+     source and copy the result here rather than editing this file. -->
 
 # Device signals
 

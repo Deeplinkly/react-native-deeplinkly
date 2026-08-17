@@ -51,10 +51,11 @@
         </intent-filter>
       </activity>
 
-      <!-- Reused from flutter_deeplinkly/example so this app inherits a
-           domain-verified setup. Swap for your own key from the dashboard. -->
+      <!-- Injected at build time from the gitignored example/android/deeplinkly.properties;
+           see app/build.gradle. Not written here, because this file is committed
+           and a committed key is a published one. -->
       <meta-data
           android:name="com.deeplinkly.sdk.api_key"
-          android:value="62da475f-4582-4f51-b106-9cb875b3cefb" />
+          android:value="${deeplinklyApiKey}" />
     </application>
 </manifest>

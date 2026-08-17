@@ -118,6 +118,15 @@ android {
     lint {
         abortOnError = false
     }
+
+    testOptions {
+        unitTests {
+            // The bridge's unit tests never touch a real React instance, but
+            // android.jar's stubs throw by default and the React classes read
+            // enough of them on construction to matter.
+            returnDefaultValues = true
+        }
+    }
 }
 
 kotlin {
@@ -131,8 +140,8 @@ dependencies {
 
     // The SDK itself. Everything below the bridge — deep link resolution, the
     // install referrer, attribution, the queues, retries, device signals,
-    // networking — lives here and is shared with the native Android SDK and the
-    // Flutter plugin, so the three can never drift.
+    // networking — lives here and is shared with every other Deeplinkly
+    // integration, so none of them can drift.
     //
     // `api`, not `implementation`: a host app that wants to call Deeplinkly
     // directly (to log an event from native code alongside JS, say) can, without
@@ -143,4 +152,10 @@ dependencies {
     // compileOnly treatment of play-services-ads-identifier that keeps the AD_ID
     // permission out of host manifests.
     api "com.deeplinkly:deeplinkly-android:1.1.1"
+
+    // mockk, because the surface under test is a Kotlin `object` (Deeplinkly) and
+    // React's context classes are final — neither of which Mockito can stand in
+    // for without extra plumbing.
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "io.mockk:mockk:1.13.13"
 }

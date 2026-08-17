@@ -5,11 +5,10 @@ import UIKit
 /**
  Forwarding entry points for the host app's `AppDelegate` / `SceneDelegate`.
 
- React Native has no equivalent of Flutter's `registrar.addApplicationDelegate`
- — a native module never receives app-delegate callbacks — so unlike the Flutter
- plugin, this bridge cannot register itself for link delivery. The host has to
- forward, and the React Native template's `AppDelegate` ships with no linking
- support at all, so there is nothing to piggyback on either.
+ A React Native native module never receives app-delegate callbacks, so this
+ bridge cannot register itself for link delivery the way a native integration can.
+ The host has to forward, and the React Native template's `AppDelegate` ships with
+ no linking support at all, so there is nothing to piggyback on either.
 
  All of these are safe to call before React Native has started: `handleLink`
  buffers until `Deeplinkly.initialize()` runs, `SdkRuntime` buffers again until

@@ -30,5 +30,53 @@ target 'DeeplinklyExample' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    inject_deeplinkly_api_key!
   end
+end
+
+# Feeds the API key to Info.plist without committing it.
+#
+# The key is read from the gitignored deeplinkly.properties and appended as a
+# build setting to the generated Pods xcconfigs, which CocoaPods already installs
+# as the app target's base configuration. Info.plist carries only
+# `$(DEEPLINKLY_API_KEY)`.
+#
+# Deliberately *not* written into the app target's build settings: that would
+# land the key in DeeplinklyExample.xcodeproj/project.pbxproj, which is
+# committed. Pods/ is gitignored and regenerated on every `pod install`, so
+# appending there keeps the key on this machine only — at the cost of needing a
+# `pod install` after changing it.
+#
+# Absent, the setting expands to empty and the SDK reports isAvailable() ==
+# false, matching a real host that forgot the Info.plist entry.
+def inject_deeplinkly_api_key!
+  props = File.join(__dir__, 'deeplinkly.properties')
+  unless File.exist?(props)
+    Pod::UI.warn 'Deeplinkly: no example/ios/deeplinkly.properties; ' \
+                 'isAvailable() will return false. Add DEEPLINKLY_API_KEY=<key>.'
+    return
+  end
+
+  key = File.readlines(props)
+            .grep(/\A\s*DEEPLINKLY_API_KEY\s*=/)
+            .first.to_s.split('=', 2).last.to_s.strip
+  if key.empty?
+    Pod::UI.warn 'Deeplinkly: DEEPLINKLY_API_KEY is empty in deeplinkly.properties.'
+    return
+  end
+
+  xcconfigs = Dir.glob(
+    File.join(__dir__, 'Pods/Target Support Files/Pods-DeeplinklyExample/*.xcconfig')
+  )
+  if xcconfigs.empty?
+    Pod::UI.warn 'Deeplinkly: no Pods-DeeplinklyExample xcconfig to inject the key into.'
+    return
+  end
+
+  # Appended last, because in an xcconfig the final assignment of a key wins.
+  xcconfigs.each do |path|
+    File.open(path, 'a') { |f| f.puts "DEEPLINKLY_API_KEY = #{key}" }
+  end
+  Pod::UI.puts "Deeplinkly: injected API key into #{xcconfigs.length} xcconfig(s).".green
 end

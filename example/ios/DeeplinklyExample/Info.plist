@@ -34,10 +34,10 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>DeeplinklyApiKey</key>
-	<string>62da475f-4582-4f51-b106-9cb875b3cefb</string>
+	<string>$(DEEPLINKLY_API_KEY)</string>
 	<key>DeeplinklyLinkDomains</key>
 	<array>
-		<string>example.deeplinkly.com</string>
+		<string>myott.deeplinkly.com</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

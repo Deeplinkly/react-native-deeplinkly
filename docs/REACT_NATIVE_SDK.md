@@ -6,10 +6,10 @@ API.
 The package is a bridge. Deep link resolution, the install referrer,
 attribution, queues, retries, device signals and networking all live in the
 native SDKs — `com.deeplinkly:deeplinkly-android` and the `Deeplinkly` pod —
-shared with the standalone native SDKs and the Flutter plugin. Native method
-names match the Flutter plugin's method channel one-for-one, so the bridges
-cannot drift, and validation is enforced natively rather than in JavaScript so
-every host gets the same answer for the same input.
+shared with every other Deeplinkly integration. Native method names match the
+SDKs' own entry points one-for-one, so no integration can drift from another, and
+validation is enforced natively rather than in JavaScript so every host gets the
+same answer for the same input.
 
 ## Install
 
@@ -183,12 +183,11 @@ Then add an **Associated Domains** capability with
 
 **This step is required on iOS and has no equivalent on Android.**
 
-The Flutter plugin registers itself for the `UIApplicationDelegate` and
-`UIScene` link callbacks, so Flutter apps need no AppDelegate changes. React
-Native has no equivalent — a native module never receives app-delegate callbacks
-— and React Native's own template ships an `AppDelegate` with no linking support
-at all, so there is nothing to piggyback on. Without the wiring below, **no deep
-link reaches the SDK.**
+A React Native native module never receives app-delegate callbacks, so the SDK
+cannot register itself for the `UIApplicationDelegate` and `UIScene` link
+callbacks the way a native integration does. React Native's own template also
+ships an `AppDelegate` with no linking support at all, so there is nothing to
+piggyback on. Without the wiring below, **no deep link reaches the SDK.**
 
 In `ios/<YourApp>/AppDelegate.swift`:
 
@@ -455,9 +454,9 @@ Validation constraints:
 Numbers and booleans keep their JSON types end to end — `49.99` is stored as a
 number, not `"49.99"`.
 
-These rules are enforced in the native SDKs, not in JavaScript, so a
-native-only integration and the Flutter plugin give the same answer. A rejected
-event resolves `false` and sends nothing.
+These rules are enforced in the native SDKs, not in JavaScript, so a native-only
+integration and this package give the same answer. A rejected event resolves
+`false` and sends nothing.
 
 ## Generate Deeplinkly links
 
@@ -565,11 +564,10 @@ failure value rather than throwing — `logEvent` resolves `false`,
 `resetPrivacyData` keep working, since they are local operations that need no
 key.
 
-This differs deliberately from the Flutter plugin, which returns one
-`SDK_DISABLED` envelope from every method and relies on Dart's cast failure to
-turn it into a typed default. A typed native module cannot resolve a map where it
-declared a boolean, so each method carries its own default and `isAvailable()`
-covers the case the envelope used to signal.
+Each method carries its own correctly-typed default rather than sharing one
+`SDK_DISABLED` envelope: a typed native module cannot resolve a map where it
+declared a boolean, so an envelope would break the contract for every method that
+does not return an object. `isAvailable()` is what tells you the key is missing.
 
 Assert it once on a debug build; a missing key is a configuration bug, not a
 runtime condition:

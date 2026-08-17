@@ -1,10 +1,9 @@
 /**
  * Public types for the Deeplinkly React Native SDK.
  *
- * These mirror the Flutter and native SDK surfaces one-for-one — the wire
- * shapes crossing the bridge are the same snake_case maps the native layer
- * already speaks, so a native-only integration and this one get identical
- * answers.
+ * These mirror the native SDK surfaces one-for-one — the wire shapes crossing
+ * the bridge are the same snake_case maps the native layer already speaks, so a
+ * native-only integration and this one get identical answers.
  */
 
 /**
@@ -72,9 +71,8 @@ export interface DeeplinklyResult {
 /**
  * A resolved deep link, delivered to {@link Deeplinkly.addListener}.
  *
- * The envelope is identical on both platforms and identical to the one the
- * Flutter plugin delivers — the native SDKs build it, and the bridge forwards
- * it unchanged.
+ * The envelope is identical on both platforms: the native SDKs build it, and the
+ * bridge forwards it unchanged.
  */
 export interface DeeplinklyLink {
   /**
