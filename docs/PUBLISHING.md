@@ -48,14 +48,22 @@ notes rather than implied to work**:
 For a `0.x` release that is defensible. Do not describe the package as
 production-ready for App Links until someone has seen one work.
 
+**As of 1.0.0 the version number no longer carries that caveat, so the release
+notes have to.** 1.0.0 was cut with the gaps above still open, as a deliberate
+call: the number commits to the *API surface* under semver, not to device
+coverage. That makes the "Unverified" section of `CHANGELOG.md` and the GitHub
+release load-bearing rather than courteous — it is now the only place a consumer
+learns what has not been exercised. Carry it forward every release, and delete
+entries only as they are actually verified.
+
 ### 2. Bump the version
 
 ```bash
 npm version patch   # or minor / major
 ```
 
-`0.x` while the gaps above stand. The bump commits and creates the `vX.Y.Z` tag;
-the release workflow refuses to publish if the tag and package.json disagree.
+The bump commits and creates the `vX.Y.Z` tag; the release workflow refuses to
+publish if the tag and package.json disagree.
 
 Keep a `CHANGELOG.md` entry. Two things belong in the notes for any consumer:
 

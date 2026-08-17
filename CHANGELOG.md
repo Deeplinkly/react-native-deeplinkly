@@ -1,0 +1,90 @@
+# Changelog
+
+All notable changes to `react-native-deeplinkly`.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
+this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] — 2026-08-17
+
+Same code as 0.1.0, with the reference docs corrected. The version number is a
+stability commitment to the **API surface** — the exported methods, their
+argument shapes, and their documented failure values are now covered by semver
+and will not change without a major bump.
+
+It is not a statement that every code path has been exercised on a device. See
+**Unverified** below and read it before shipping this in an app.
+
+### Fixed
+
+- **Reference docs described `generateLink`'s result with the wrong key names.**
+  `docs/REACT_NATIVE_SDK.md` documented `{ success, url?, error_code?,
+  error_message? }`, but the package resolves camelCase `errorCode` /
+  `errorMessage` — `src/index.tsx` maps the native response before it reaches
+  JS. Anyone following the docs read `undefined` on every failure. The docs now
+  match the code, list the two bridge-local codes (`NULL_NATIVE_RESPONSE`,
+  `NATIVE_EXCEPTION`), and explain why this one result is mapped while the deep
+  link envelope's `click_id` / `params` are forwarded unchanged.
+
+### Unverified
+
+Not observed working, and not to be assumed. Nothing here is known broken — it
+is untested, which is a different claim:
+
+- **iOS runtime behaviour of any kind.** It compiles and its unit tests pass,
+  but the app has never been launched and no link has ever been driven through
+  it.
+- **App Links and Universal Links, on both platforms.** No `https` link has
+  reached the app in testing. Android was driven with `-n` to force the
+  component, which exercises the SDK path faithfully but bypasses intent-filter
+  matching entirely.
+- **Deferred deep linking on Android.** The install-referrer path is reached but
+  never exercised; it needs an install from a Play internal-test track.
+- **`<DeeplinklyPasteButton>`.** `UIPasteControl` has never been rendered.
+- **The legacy architecture at runtime.** Compiled, unit-tested, never launched.
+  All device runs were `newArchEnabled=true`.
+- **The Objective-C AppDelegate integration.** The `__has_include` pair for
+  framework vs static-library linkage is written from documented behaviour.
+
+### Two things that will bite a host app
+
+- **Kotlin 2.2.0 is a hard floor.** The native Android SDK's metadata is
+  unreadable by a 2.0.x compiler, and hosts on the React Native 0.79 template
+  land on 2.0.21. `android/build.gradle` fails the build with instructions
+  rather than letting the compiler emit an `Internal compiler error` over a wall
+  of FIR frames. The classpath entry must be versioned explicitly — left bare,
+  `ext.kotlinVersion` is silently ignored.
+- **iOS requires host AppDelegate wiring.** Unlike the Flutter plugin, a React
+  Native native module cannot receive app-delegate callbacks, so **no deep link
+  reaches the SDK** until the host forwards them. Apps adopting `UISceneDelegate`
+  need the three scene callbacks instead. See
+  [Forward links from your AppDelegate](docs/REACT_NATIVE_SDK.md#forward-links-from-your-appdelegate).
+
+### Native SDKs
+
+Pinned exactly; a host cannot pick these independently.
+
+| Layer   | Artifact                                  |
+| ------- | ----------------------------------------- |
+| Android | `com.deeplinkly:deeplinkly-android:1.1.1` |
+| iOS     | pod `Deeplinkly`, `1.0.1`                 |
+
+## [0.1.0] — 2026-08-17
+
+First publish. The bridge over the native Deeplinkly SDKs: deep links, deferred
+deep linking, install referrer tracking, and attribution, on both the new and
+legacy React Native architectures.
+
+- Deep link delivery through `addListener`, with native buffering so a cold
+  start does not race the JS bundle.
+- Identity (`getDeeplinklyId`, `setUserId`), install attribution, custom events,
+  and link generation.
+- Privacy controls: `setTrackingEnabled`, `resetPrivacyData`, and the four
+  attribution levels.
+- iOS deferred deep linking by pasteboard, with `<DeeplinklyPasteButton>` as the
+  banner-free path.
+- Validation enforced natively rather than in JavaScript, so a native-only
+  integration and this package answer the same for the same input.
+
+[1.0.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v1.0.0
+[0.1.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v0.1.0

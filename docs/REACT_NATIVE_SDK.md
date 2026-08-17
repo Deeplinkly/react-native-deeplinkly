@@ -476,16 +476,25 @@ const result = await Deeplinkly.generateLink(
 
 if (result.success) {
   Share.share({ message: result.url! });
+} else {
+  console.warn(result.errorCode, result.errorMessage);
 }
 ```
 
 `tags` is a list, not an object — the API only accepts a list (or a
 comma-separated string) and silently discards anything else.
 
-The result is `{ success, url?, error_code?, error_message? }`. It resolves
-rather than rejecting on failure. Observed `error_code` values: `SDK_DISABLED`,
-`INVALID`, `NO_URL`, `LINK_ERROR`, `HTTP_<status>`, or a backend code passed
-through.
+The result is `{ success, url?, errorCode?, errorMessage? }`. It resolves rather
+than rejecting on failure. Observed `errorCode` values: `SDK_DISABLED`,
+`INVALID`, `NO_URL`, `LINK_ERROR`, `HTTP_<status>`, `NULL_NATIVE_RESPONSE`,
+`NATIVE_EXCEPTION`, or a backend code passed through.
+
+The keys are camelCase here and snake_case on the wire. Everything else crossing
+the bridge keeps the native SDKs' own shapes — the deep link envelope's
+`click_id` and `params` reach you unchanged — but `generateLink` is mapped in
+`src/index.tsx` before it resolves, because `DeeplinklyResult` is a type this
+package declares rather than a map it forwards. Reading `result.error_code` gets
+`undefined`.
 
 ## Privacy
 
@@ -560,7 +569,7 @@ be sent during native module construction, before a JS call could arrive:
 `isAvailable()` returns false and every other method answers with its documented
 failure value rather than throwing — `logEvent` resolves `false`,
 `getAttributionLevel` resolves `none`, `generateLink` resolves
-`{ success: false, error_code: 'SDK_DISABLED' }`. `getDeeplinklyId` and
+`{ success: false, errorCode: 'SDK_DISABLED' }`. `getDeeplinklyId` and
 `resetPrivacyData` keep working, since they are local operations that need no
 key.
 
