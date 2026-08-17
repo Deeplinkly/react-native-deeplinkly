@@ -211,11 +211,51 @@ The example app's UI logs every call and every received link, so step 4 is the
 whole runtime check: press each button, then send a link and confirm one
 `{click_id, params}` envelope arrives.
 
-**Never run two `pod install`s against this project at once.** CocoaPods takes no
-lock; two concurrent runs wedge each other silently at a partial `Pods/` and make
-no further progress. If it looks hung, check for more than one
-`libexec/bin/pod install` process, kill all of them, `rm -rf Pods Podfile.lock`,
-and start one.
+### Do not install the library into `example/node_modules`
+
+`example/` deliberately has **no** `react-native-deeplinkly` dependency in its
+`package.json`. Adding one as `file:..` symlinks
+`example/node_modules/react-native-deeplinkly` to the repo root — and the repo
+root contains `example/`, so the path
+
+```
+example/node_modules/react-native-deeplinkly/example/node_modules/…
+```
+
+resolves forever. React Native's `generate-codegen-artifacts.js` walks the
+dependency tree recursively and hits that cycle, then **spins at 100% CPU
+indefinitely** rather than failing. Three such processes accumulated in one
+session (92, 76 and 65 minutes of CPU each), pushing load average past 40 and
+making every other build look mysteriously slow — a Gradle run stalled at
+`generateCodegenSchemaFromJavaScript` and a `pod install` sat at 0.33 s of CPU
+across 43 minutes, both simply starved and blocked on their own codegen child.
+
+Resolution is instead:
+
+- **native / autolinking** — `example/react-native.config.js` declares the
+  dependency explicitly with `root` pointing at the repo. Autolinking supports a
+  `dependencies` entry for a package that is not in `node_modules`; that is what
+  the key is for.
+- **JavaScript** — `example/metro.config.js` maps the package name to the repo
+  root via `extraNodeModules`, alongside `watchFolders`.
+
+If a build ever looks hung, check for `generate-codegen-artifacts` first:
+
+```bash
+ps -eo pid,etime,time,%cpu,command | grep "[g]enerate-codegen-artifacts"
+```
+
+High `%cpu` with growing CPU time is this bug, not slow progress. Kill those
+processes; they never terminate on their own.
+
+### One `pod install` at a time
+
+CocoaPods takes no lock, so concurrent runs against the same project interfere.
+Beware also that `pgrep -f "pod install"` **matches the command line of the shell
+running the pgrep**, so a naive `until ! pgrep -f …` waiter never exits and a
+process count includes the watcher itself — that misreading cost time here.
+Match the interpreter instead (`ps -eo command | grep "[r]uby.*bin/pod"`) or wait
+on a captured PID.
 
 The Android emulator is `Pixel_10_Pro`; iOS simulators include `iPhone 17`.
 `example/android/local.properties` is gitignored and must be recreated with

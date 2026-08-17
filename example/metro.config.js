@@ -20,6 +20,14 @@ const config = {
       new RegExp(`${path.join(root, 'lib')}/.*`),
     ],
     extraNodeModules: {
+      // The library is resolved from the repo root rather than installed into
+      // example/node_modules. A `file:..` dependency would symlink
+      // example/node_modules/react-native-deeplinkly -> the repo root, and the
+      // repo root contains example/ — so any recursive directory walk cycles
+      // forever. React Native's codegen script does exactly such a walk and
+      // spins at 100% CPU indefinitely. Autolinking gets the native side from
+      // react-native.config.js instead.
+      'react-native-deeplinkly': root,
       react: path.join(__dirname, 'node_modules', 'react'),
       'react-native': path.join(__dirname, 'node_modules', 'react-native'),
     },

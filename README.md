@@ -141,6 +141,13 @@ cd ios && pod install && cd ..
 npm run ios      # or: npm run android
 ```
 
+The example resolves this library from the repo root — via `react-native.config.js`
+for autolinking and `metro.config.js` for JavaScript — rather than installing it
+into `example/node_modules`. Do not add it as a `file:..` dependency: that creates
+a symlink cycle through `example/` that makes React Native's codegen spin
+forever. See
+[docs/NATIVE_SDK_MIGRATION.md](docs/NATIVE_SDK_MIGRATION.md#do-not-install-the-library-into-examplenode_modules).
+
 Send it a test link:
 
 ```bash

@@ -231,14 +231,22 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
   /**
    * A warm-start deep link. The activity is read at call time rather than
    * captured, which would go stale as soon as the activity was recreated.
+   *
+   * `reactApplicationContext.currentActivity` rather than the inherited
+   * `getCurrentActivity()`, which React Native deprecated in 0.80.
+   *
+   * Parameters are declared non-null because React Native 0.87 rewrote
+   * `ActivityEventListener` in Kotlin with non-null types. Older React Native
+   * declares them in Java, where they arrive as platform types and accept a
+   * non-null override just as well — so this signature satisfies both.
    */
-  override fun onNewIntent(intent: Intent?) {
-    val context: Context = currentActivity ?: reactApplicationContext
+  override fun onNewIntent(intent: Intent) {
+    val context: Context = reactApplicationContext.currentActivity ?: reactApplicationContext
     Deeplinkly.onNewIntent(context, intent)
   }
 
   override fun onActivityResult(
-    activity: Activity?,
+    activity: Activity,
     requestCode: Int,
     resultCode: Int,
     data: Intent?

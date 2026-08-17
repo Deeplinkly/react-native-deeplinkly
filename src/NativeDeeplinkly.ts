@@ -1,12 +1,13 @@
 import type { CodegenTypes, TurboModule } from 'react-native';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
 
-/**
- * Codegen's opaque object type. Re-aliased locally because its import path has
- * moved once already — it was `react-native/Libraries/Types/CodegenTypes` before
- * React Native 0.80 exported the `CodegenTypes` namespace from the root.
- */
-type UnsafeObject = CodegenTypes.UnsafeObject;
+// `CodegenTypes.UnsafeObject` is written out at every use site below, and must
+// stay that way. Aliasing it locally — `type UnsafeObject =
+// CodegenTypes.UnsafeObject` — sends codegen's TypeScript parser into an
+// infinite loop: it spins at 100% CPU forever instead of failing, which
+// surfaces as a Gradle build that hangs at
+// `generateCodegenSchemaFromJavaScript` and a `pod install` that never returns.
+// Inline namespace-qualified references parse fine; only the alias breaks.
 
 /**
  * Codegen spec for the native module.
@@ -54,18 +55,18 @@ export interface Spec extends TurboModule {
   setUserId(userId: string | null): Promise<void>;
 
   /** Install attribution as a flat string map. Empty map on failure. */
-  getInstallAttribution(): Promise<UnsafeObject>;
+  getInstallAttribution(): Promise<CodegenTypes.UnsafeObject>;
 
   // -- links ----------------------------------------------------------------
 
   generateLink(
-    content: UnsafeObject,
-    options: UnsafeObject
-  ): Promise<UnsafeObject>;
+    content: CodegenTypes.UnsafeObject,
+    options: CodegenTypes.UnsafeObject
+  ): Promise<CodegenTypes.UnsafeObject>;
 
   // -- events ---------------------------------------------------------------
 
-  logEvent(eventName: string, parameters: UnsafeObject): Promise<boolean>;
+  logEvent(eventName: string, parameters: CodegenTypes.UnsafeObject): Promise<boolean>;
 
   // -- privacy --------------------------------------------------------------
 
