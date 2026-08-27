@@ -129,6 +129,48 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  /**
+   * Every field arrives in one map, and every one of them is optional.
+   *
+   * Read with `getString`, which answers null for a key that is absent and for
+   * one explicitly set to null alike — which is what the SDK wants, since both
+   * mean "leave this field as it is". Validation lives in the SDK's
+   * `DeeplinklyUserData` rather than here, for the same reason `logEvent`
+   * forwards raw: a native-only integration and this bridge have to give the
+   * same answer for the same input.
+   */
+  @ReactMethod
+  override fun setUserData(fields: ReadableMap, promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    promise.resolve(
+      Deeplinkly.setUserData(
+        userId = fields.getStringOrNull("user_id"),
+        email = fields.getStringOrNull("email"),
+        phoneNumber = fields.getStringOrNull("phone_number"),
+        firstName = fields.getStringOrNull("first_name"),
+        lastName = fields.getStringOrNull("last_name"),
+        dateOfBirth = fields.getStringOrNull("date_of_birth"),
+        gender = fields.getStringOrNull("gender"),
+        street = fields.getStringOrNull("street"),
+        city = fields.getStringOrNull("city"),
+        state = fields.getStringOrNull("state"),
+        zip = fields.getStringOrNull("zip"),
+        country = fields.getStringOrNull("country"),
+      )
+    )
+  }
+
+  @ReactMethod
+  override fun clearUserData(promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    Deeplinkly.clearUserData()
+    promise.resolve(true)
+  }
+
+  /** Null for an absent key as well as an explicitly null one. */
+  private fun ReadableMap.getStringOrNull(key: String): String? =
+    if (hasKey(key) && !isNull(key)) getString(key) else null
+
   @ReactMethod
   override fun getInstallAttribution(promise: Promise) {
     if (!requireEnabled(promise, Arguments.createMap())) return
@@ -176,6 +218,41 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
   override fun logEvent(eventName: String, parameters: ReadableMap, promise: Promise) {
     if (!requireEnabled(promise, false)) return
     Deeplinkly.logEvent(eventName, parameters.toHashMap()) { ok -> promise.resolve(ok) }
+  }
+
+  /**
+   * The value is read as a Double via `getDouble`, which is the only numeric
+   * type the bridge carries — JavaScript has no integers, so a purchase costing
+   * exactly 50 arrives here as 50.0 either way.
+   */
+  @ReactMethod
+  override fun logPurchase(fields: ReadableMap, promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    if (!fields.hasKey("value") || fields.isNull("value")) {
+      promise.resolve(false)
+      return
+    }
+    val currency = fields.getStringOrNull("currency")
+    if (currency == null) {
+      promise.resolve(false)
+      return
+    }
+    Deeplinkly.logPurchase(
+      value = fields.getDouble("value"),
+      currency = currency,
+      orderId = fields.getStringOrNull("order_id"),
+      quantity = if (fields.hasKey("quantity") && !fields.isNull("quantity")) {
+        fields.getInt("quantity")
+      } else {
+        null
+      },
+      productId = fields.getStringOrNull("product_id"),
+      parameters = if (fields.hasKey("parameters") && !fields.isNull("parameters")) {
+        fields.getMap("parameters")?.toHashMap() ?: emptyMap()
+      } else {
+        emptyMap()
+      },
+    ) { ok -> promise.resolve(ok) }
   }
 
   // -- privacy ----------------------------------------------------------------

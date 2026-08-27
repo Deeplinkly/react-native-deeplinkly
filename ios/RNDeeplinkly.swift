@@ -144,6 +144,51 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
     resolve(nil)
   }
 
+  /**
+   Every field arrives in one dictionary, and every one of them is optional.
+
+   Read through a helper that answers nil for an absent key and for `NSNull`
+   alike — JavaScript's `null` crosses the bridge as `NSNull`, and a plain
+   `as? String` on one yields nil anyway, but only by accident. Both mean
+   "leave this field as it is". Validation lives in the SDK's
+   `DeeplinklyUserData` rather than here, for the same reason `logEvent`
+   forwards raw.
+   */
+  @objc(setUserData:resolve:reject:)
+  func setUserData(
+    _ fields: NSDictionary,
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    func string(_ key: String) -> String? { fields[key] as? String }
+    resolve(
+      Deeplinkly.setUserData(
+        userId: string("user_id"),
+        email: string("email"),
+        phoneNumber: string("phone_number"),
+        firstName: string("first_name"),
+        lastName: string("last_name"),
+        dateOfBirth: string("date_of_birth"),
+        gender: string("gender"),
+        street: string("street"),
+        city: string("city"),
+        state: string("state"),
+        zip: string("zip"),
+        country: string("country")
+      ))
+  }
+
+  @objc(clearUserData:reject:)
+  func clearUserData(
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    Deeplinkly.clearUserData()
+    resolve(true)
+  }
+
   @objc(getInstallAttribution:reject:)
   func getInstallAttribution(
     resolve: RCTPromiseResolveBlock,
@@ -194,6 +239,34 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
     Deeplinkly.logEvent(
       eventName,
       parameters: (parameters as? [String: Any]) ?? [:]
+    ) { ok in resolve(ok) }
+  }
+
+  /**
+   The value is read as `NSNumber`, not `Double`. JavaScript has no integers, so
+   a purchase costing exactly 50 crosses the bridge as an `NSNumber` that may be
+   tagged either way; casting straight to `Double` would answer false for a
+   perfectly ordinary whole-number sale.
+   */
+  @objc(logPurchase:resolve:reject:)
+  func logPurchase(
+    _ fields: NSDictionary,
+    resolve: @escaping RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    guard let value = (fields["value"] as? NSNumber)?.doubleValue,
+      let currency = fields["currency"] as? String
+    else {
+      return resolve(false)
+    }
+    Deeplinkly.logPurchase(
+      value: value,
+      currency: currency,
+      orderId: fields["order_id"] as? String,
+      quantity: (fields["quantity"] as? NSNumber)?.intValue,
+      productId: fields["product_id"] as? String,
+      parameters: (fields["parameters"] as? [String: Any]) ?? [:]
     ) { ok in resolve(ok) }
   }
 

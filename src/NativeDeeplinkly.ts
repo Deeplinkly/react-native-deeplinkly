@@ -54,6 +54,17 @@ export interface Spec extends TurboModule {
   /** Sets your app's user id (`custom_user_id`) for enrichment and user linking. */
   setUserId(userId: string | null): Promise<void>;
 
+  /**
+   * Records the person's own details for conversion matching.
+   *
+   * One flat object rather than twelve arguments, because the codegen spec and
+   * both native bridges would each have to repeat the list otherwise.
+   */
+  setUserData(fields: CodegenTypes.UnsafeObject): Promise<boolean>;
+
+  /** Erases everything `setUserData`/`setUserId` recorded, here and remotely. */
+  clearUserData(): Promise<boolean>;
+
   /** Install attribution as a flat string map. Empty map on failure. */
   getInstallAttribution(): Promise<CodegenTypes.UnsafeObject>;
 
@@ -67,6 +78,9 @@ export interface Spec extends TurboModule {
   // -- events ---------------------------------------------------------------
 
   logEvent(eventName: string, parameters: CodegenTypes.UnsafeObject): Promise<boolean>;
+
+  /** Logs a `purchase` event. `fields` carries value/currency and the rest. */
+  logPurchase(fields: CodegenTypes.UnsafeObject): Promise<boolean>;
 
   // -- privacy --------------------------------------------------------------
 

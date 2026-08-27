@@ -34,11 +34,17 @@ abstract class DeeplinklyModuleSpec(context: ReactApplicationContext) :
 
   abstract fun setUserId(userId: String?, promise: Promise)
 
+  abstract fun setUserData(fields: ReadableMap, promise: Promise)
+
+  abstract fun clearUserData(promise: Promise)
+
   abstract fun getInstallAttribution(promise: Promise)
 
   abstract fun generateLink(content: ReadableMap, options: ReadableMap, promise: Promise)
 
   abstract fun logEvent(eventName: String, parameters: ReadableMap, promise: Promise)
+
+  abstract fun logPurchase(fields: ReadableMap, promise: Promise)
 
   abstract fun disableTracking(disabled: Boolean, promise: Promise)
 

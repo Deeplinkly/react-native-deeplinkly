@@ -314,4 +314,39 @@ class DeeplinklyModuleTest {
         verify(exactly = 1) { promise.resolve(false) }
         assertFalse(Deeplinkly.isEnabled)
     }
+
+    /**
+     * Same contract for the three methods added with user data: a disabled SDK
+     * answers its documented failure value rather than leaving the JS promise
+     * pending forever.
+     */
+    @Test
+    fun `setUserData answers false rather than hanging when disabled`() {
+        every { Deeplinkly.isEnabled } returns false
+        val promise = mockk<Promise>(relaxed = true)
+
+        module().setUserData(mockk(relaxed = true), promise)
+
+        verify(exactly = 1) { promise.resolve(false) }
+    }
+
+    @Test
+    fun `clearUserData answers false rather than hanging when disabled`() {
+        every { Deeplinkly.isEnabled } returns false
+        val promise = mockk<Promise>(relaxed = true)
+
+        module().clearUserData(promise)
+
+        verify(exactly = 1) { promise.resolve(false) }
+    }
+
+    @Test
+    fun `logPurchase answers false rather than hanging when disabled`() {
+        every { Deeplinkly.isEnabled } returns false
+        val promise = mockk<Promise>(relaxed = true)
+
+        module().logPurchase(mockk(relaxed = true), promise)
+
+        verify(exactly = 1) { promise.resolve(false) }
+    }
 }
