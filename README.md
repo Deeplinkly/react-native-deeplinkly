@@ -110,7 +110,9 @@ and iOS SDKs and collects whatever they collect. Use `docs/SIGNALS.md` when you
 fill in your Google Play **Data safety** form, your App Store **privacy label**,
 or your own privacy notice; those declarations must cover what your app
 configures the SDK to send, not only the defaults. Deeplinkly's own handling of
-that data, its recipients, and retention are in the
+that data is summarised at
+[Data & Privacy](https://www.deeplinkly.com/docs/privacy); recipients, legal
+bases, and transfers are in the
 [Deeplinkly Privacy Policy](https://www.deeplinkly.com/privacy-policy).
 
 ### Deferred deep linking on iOS (no banner)
