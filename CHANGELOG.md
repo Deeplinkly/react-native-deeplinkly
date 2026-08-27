@@ -5,6 +5,31 @@ All notable changes to `react-native-deeplinkly`.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-08-27
+
+### Added
+
+- `setUserData()` records the email, phone, name and address a conversion is
+  matched on at Meta's Conversions API and Google's enhanced conversions. Every
+  field is optional and each call merges, so you can supply an email at sign-up
+  and an address at checkout. Values are sent as supplied and hashed only when a
+  conversion is forwarded — the digest of a normalised email is exactly the
+  value Meta matches on, so hashing on device would look safer and buy nothing.
+- `clearUserData()` erases those fields on the device *and* on the server: each
+  previously-set field is reported empty until the erasure is delivered, so a
+  clear on an offline device still takes effect.
+- `logPurchase({ value, currency, ... })`, a typed wrapper over `logEvent` that
+  sends the `purchase` event with the one spelling of `value`/`currency` both
+  destinations can be built from.
+- Every event now carries a client-generated event id, which makes a replay off
+  the retry queue idempotent rather than a double count.
+
+### Changed
+
+- Bundles `deeplinkly-android` 1.3.0 (was 1.2.0) and `Deeplinkly` iOS 1.2.0
+  (was 1.1.0), which is where all of the above is implemented — this package is
+  the bridge. Signal catalogue version 9.
+
 ## [1.1.0] — 2026-08-27
 
 ### Added

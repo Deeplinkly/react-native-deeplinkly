@@ -425,6 +425,63 @@ Deeplinkly.setUserId('user_123');
 `deeplinkly_device_id` / `X-Deeplinkly-User-Id`. `setUserId` sets
 `custom_user_id` for enrichment and backend user linking; pass `null` to clear.
 
+## Record user data
+
+The fields a conversion is matched on once it reaches Meta's Conversions API or
+Google's enhanced conversions. On iOS with App Tracking Transparency denied —
+which is most devices — a hashed email is the only match key that still exists,
+so supplying one here is the difference between a purchase attributed to the
+campaign that produced it and one that is not.
+
+```ts
+const stored = await Deeplinkly.setUserData({
+  userId: 'user_123',
+  email: 'ada@example.com',
+  phoneNumber: '+441234567890',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  city: 'London',
+  country: 'GB',
+});
+```
+
+Every field is optional and each call **merges**, so you can supply an email at
+sign-up and an address at checkout. A malformed field rejects the whole call —
+nothing is stored — so you never have to guess which of the values took.
+
+Values are sent as you supply them and hashed only when a conversion is
+forwarded. On-device hashing would look safer and buy nothing: the digest of a
+normalised email is exactly the value Meta matches on, so anyone holding it
+holds the match key. Keeping the plaintext is also what lets the backend
+normalise per destination, which Meta and Google disagree about.
+
+Supply only what your own privacy policy and consent flow allow — the SDK cannot
+know what you told your users. These fields survive a `reduced` downgrade,
+because the attribution levels gate what the SDK *observes* about a device and an
+email someone typed into your app is not an observation. At `none` nothing is
+sent, here as everywhere.
+
+Constraints, enforced natively before anything is stored:
+
+- `dateOfBirth`: `YYYY-MM-DD`
+- `gender`: `'m'` or `'f'` — the only two values Meta's `ge` accepts. Anything
+  else is refused rather than coerced into a letter that means something you did
+  not say.
+- `country`: ISO-3166-1 alpha-2, e.g. `'US'`
+- per-field maximum lengths, listed in [SIGNALS.md](SIGNALS.md)
+
+To erase everything recorded — on sign-out, or when someone withdraws consent:
+
+```ts
+Deeplinkly.clearUserData();
+```
+
+This is not merely "stop sending": the next enrichment reports each
+previously-set field as empty, which the backend reads as "null this column".
+The erasure is re-sent until it is delivered, so calling it on a device that is
+offline still takes effect once it is not. To clear only the id, call
+`setUserId(null)`.
+
 ## Log events
 
 ```ts
@@ -457,6 +514,44 @@ number, not `"49.99"`.
 These rules are enforced in the native SDKs, not in JavaScript, so a native-only
 integration and this package give the same answer. A rejected event resolves
 `false` and sends nothing.
+
+## Log purchases
+
+```ts
+const ok = await Deeplinkly.logPurchase({
+  value: 49.99,
+  currency: 'USD',
+  orderId: 'ord_42',
+  quantity: 1,
+  productId: 'sku_9',
+});
+```
+
+A typed wrapper over `logEvent` rather than a separate pipeline: it sends the
+event named `purchase` with `value` and `currency` set, and everything true of
+`logEvent` — the retry queue, the parameter limits, the device block — is true
+of this too.
+
+It exists because those two keys have to be spelled the same way by every
+caller. `logEvent` is untyped, so left to themselves one app sends `revenue` and
+another sends `'USD 49.99'`, and a conversion forwarder has to guess. Meta's
+Conversions API wants `custom_data.value` and `currency`; Google wants a
+conversion value and currency. This is the one spelling both can be built from.
+
+Rejected, sending nothing, if the value is negative or not finite (a refund is a
+different event, not a negative purchase), the currency is not three letters,
+the quantity is negative, or `parameters` contains any of the keys this method
+sets. `logEvent` applies the same checks to `value` and `currency` wherever they
+appear, so a hand-rolled purchase gets the same answer.
+
+`orderId` is worth passing: it is what Google deduplicates conversions on, and
+it is how you reconcile a forwarded conversion against your own records.
+
+Every event, purchase or not, also carries a client-generated event id. It is
+Meta CAPI's `event_id`, and it is what makes a replay off the retry queue
+idempotent: an event that was delivered but whose response was lost comes back
+carrying an id the backend already has, and is refused rather than counted
+twice.
 
 ## Generate Deeplinkly links
 
@@ -552,9 +647,12 @@ be sent during native module construction, before a JS call could arrive:
 | `isAvailable()` | `Promise<boolean>` | False when the API key is missing |
 | `getDeeplinklyId()` | `Promise<string>` | Works even with no API key |
 | `setUserId(id \| null)` | `void` | Fire-and-forget |
+| `setUserData(data)` | `Promise<boolean>` | False if any field was malformed; nothing stored |
+| `clearUserData()` | `void` | Fire-and-forget; erases locally and on the server |
 | `getInstallAttribution()` | `Promise<Record<string, string>>` | `{}` on failure |
 | `generateLink(content, options)` | `Promise<DeeplinklyResult>` | Resolves on failure, never rejects |
 | `logEvent(name, params?)` | `Promise<boolean>` | False if rejected natively |
+| `logPurchase(purchase)` | `Promise<boolean>` | Sends the `purchase` event with a typed value |
 | `setTrackingEnabled(bool)` | `Promise<boolean>` | Persists across launches |
 | `resetPrivacyData()` | `Promise<boolean>` | Leaves tracking disabled |
 | `setAttributionLevel(level)` | `Promise<boolean>` | False on an unknown level |
@@ -567,7 +665,8 @@ be sent during native module construction, before a JS call could arrive:
 ### Behaviour when the API key is missing
 
 `isAvailable()` returns false and every other method answers with its documented
-failure value rather than throwing — `logEvent` resolves `false`,
+failure value rather than throwing — `logEvent` and `logPurchase` resolve
+`false`, `setUserData` resolves `false`,
 `getAttributionLevel` resolves `none`, `generateLink` resolves
 `{ success: false, errorCode: 'SDK_DISABLED' }`. `getDeeplinklyId` and
 `resetPrivacyData` keep working, since they are local operations that need no
