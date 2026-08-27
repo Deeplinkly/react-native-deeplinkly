@@ -5,6 +5,21 @@ All notable changes to `react-native-deeplinkly`.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-08-27
+
+### Added
+
+- The Google Ads `gbraid` and `wbraid` click identifiers are collected and
+  reported by the underlying native SDKs. Signal catalogue version 8; both are
+  classified `reduced`, so they ship at every attribution level except `none`.
+  On iOS this is the material change — Google App campaigns deliver `gbraid`
+  because there is no IDFA to match on, and it was previously discarded.
+
+### Changed
+
+- Bundles `deeplinkly-android` 1.2.0 (was 1.1.1) and `Deeplinkly` iOS 1.1.0
+  (was 1.0.1). No JavaScript API change.
+
 ## [1.0.0] — 2026-08-17
 
 Same code as 0.1.0, with the reference docs corrected. The version number is a
@@ -86,5 +101,6 @@ legacy React Native architectures.
 - Validation enforced natively rather than in JavaScript, so a native-only
   integration and this package answer the same for the same input.
 
+[1.1.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v1.0.0
 [0.1.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v0.1.0

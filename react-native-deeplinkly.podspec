@@ -27,7 +27,7 @@ Pod::Spec.new do |s|
   # The SDK itself. Everything below the bridge — resolution, attribution, the
   # pasteboard path, queues, retries, device signals, networking — lives here and
   # is shared with every other Deeplinkly integration, so none of them can drift.
-  s.dependency "Deeplinkly", "1.0.1"
+  s.dependency "Deeplinkly", "1.1.0"
 
   # Pulls in React-Core plus, on the new architecture, the codegen'd spec and
   # the TurboModule/Fabric headers this module compiles against.

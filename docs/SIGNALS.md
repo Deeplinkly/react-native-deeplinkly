@@ -6,7 +6,7 @@
 
 Every field the SDK may send to `/api/v1/enrich`, and the lowest
 [attribution level](REACT_NATIVE_SDK.md#attribution-levels) at which each still
-ships. Catalogue version 7.
+ships. Catalogue version 8.
 
 A field absent from this table is never sent, at any level: the SDK drops
 anything it cannot find in the catalogue rather than defaulting to
@@ -29,6 +29,7 @@ names the link or user being reported on rather than the device.
 | `install_referrer` | minimal | string | android |
 | `source` | minimal | string | both |
 | `fbclid` | reduced | string | both |
+| `gbraid` | reduced | string | both |
 | `gclid` | reduced | string | both |
 | `ttclid` | reduced | string | both |
 | `utm_campaign` | reduced | string | both |
@@ -36,6 +37,7 @@ names the link or user being reported on rather than the device.
 | `utm_medium` | reduced | string | both |
 | `utm_source` | reduced | string | both |
 | `utm_term` | reduced | string | both |
+| `wbraid` | reduced | string | both |
 
 ## Static device profile
 
