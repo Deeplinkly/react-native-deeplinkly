@@ -105,6 +105,14 @@ including `'none'` and while tracking is disabled — these gate *reporting*, no
 functionality. [docs/SIGNALS.md](docs/SIGNALS.md) is the field-by-field
 reference for what each level sends.
 
+This wrapper holds no catalogue of its own — it forwards to the native Android
+and iOS SDKs and collects whatever they collect. Use `docs/SIGNALS.md` when you
+fill in your Google Play **Data safety** form, your App Store **privacy label**,
+or your own privacy notice; those declarations must cover what your app
+configures the SDK to send, not only the defaults. Deeplinkly's own handling of
+that data, its recipients, and retention are in the
+[Deeplinkly Privacy Policy](https://www.deeplinkly.com/privacy-policy).
+
 ### Deferred deep linking on iOS (no banner)
 
 ```tsx

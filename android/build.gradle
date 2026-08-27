@@ -151,7 +151,7 @@ dependencies {
     // installreferrer, play-services-appset, coroutines and core-ktx, plus the
     // compileOnly treatment of play-services-ads-identifier that keeps the AD_ID
     // permission out of host manifests.
-    api "com.deeplinkly:deeplinkly-android:1.1.1"
+    api "com.deeplinkly:deeplinkly-android:1.3.0"
 
     // mockk, because the surface under test is a Kotlin `object` (Deeplinkly) and
     // React's context classes are final — neither of which Mockito can stand in

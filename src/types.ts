@@ -88,6 +88,49 @@ export interface DeeplinklyLink {
   params: Record<string, unknown>;
 }
 
+/**
+ * What you know about the person using your app, for {@link Deeplinkly.setUserData}.
+ *
+ * Every field is optional and each call merges, so you can supply an email at
+ * sign-up and an address at checkout. Values are sent as supplied and hashed
+ * only when a conversion is forwarded.
+ */
+export interface DeeplinklyUserData {
+  /** Your own identifier for this person, reported as `custom_user_id`. */
+  userId?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  /** `YYYY-MM-DD`. */
+  dateOfBirth?: string | null;
+  /** `"m"` or `"f"` — the only two values Meta's `ge` accepts. */
+  gender?: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  /** ISO-3166-1 alpha-2, e.g. `"US"`. */
+  country?: string | null;
+}
+
+/** A purchase, for {@link Deeplinkly.logPurchase}. */
+export interface DeeplinklyPurchase {
+  /** The amount, in {@link currency}. Must be finite and not negative. */
+  value: number;
+  /** ISO-4217, e.g. `"USD"`. Case-insensitive. */
+  currency: string;
+  /** Your own id for the transaction. What Google deduplicates conversions on. */
+  orderId?: string | null;
+  quantity?: number | null;
+  productId?: string | null;
+  /**
+   * Anything else to put on the event. May not contain `value`, `currency`,
+   * `order_id`, `quantity` or `product_id` — pass those as fields above.
+   */
+  parameters?: Record<string, EventParameterValue>;
+}
+
 /** Parameter values accepted by {@link Deeplinkly.logEvent}. */
 export type EventParameterValue =
   | string

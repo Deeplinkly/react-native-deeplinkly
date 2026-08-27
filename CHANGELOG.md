@@ -5,6 +5,46 @@ All notable changes to `react-native-deeplinkly`.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-08-27
+
+### Added
+
+- `setUserData()` records the email, phone, name and address a conversion is
+  matched on at Meta's Conversions API and Google's enhanced conversions. Every
+  field is optional and each call merges, so you can supply an email at sign-up
+  and an address at checkout. Values are sent as supplied and hashed only when a
+  conversion is forwarded — the digest of a normalised email is exactly the
+  value Meta matches on, so hashing on device would look safer and buy nothing.
+- `clearUserData()` erases those fields on the device *and* on the server: each
+  previously-set field is reported empty until the erasure is delivered, so a
+  clear on an offline device still takes effect.
+- `logPurchase({ value, currency, ... })`, a typed wrapper over `logEvent` that
+  sends the `purchase` event with the one spelling of `value`/`currency` both
+  destinations can be built from.
+- Every event now carries a client-generated event id, which makes a replay off
+  the retry queue idempotent rather than a double count.
+
+### Changed
+
+- Bundles `deeplinkly-android` 1.3.0 (was 1.2.0) and `Deeplinkly` iOS 1.2.0
+  (was 1.1.0), which is where all of the above is implemented — this package is
+  the bridge. Signal catalogue version 9.
+
+## [1.1.0] — 2026-08-27
+
+### Added
+
+- The Google Ads `gbraid` and `wbraid` click identifiers are collected and
+  reported by the underlying native SDKs. Signal catalogue version 8; both are
+  classified `reduced`, so they ship at every attribution level except `none`.
+  On iOS this is the material change — Google App campaigns deliver `gbraid`
+  because there is no IDFA to match on, and it was previously discarded.
+
+### Changed
+
+- Bundles `deeplinkly-android` 1.2.0 (was 1.1.1) and `Deeplinkly` iOS 1.1.0
+  (was 1.0.1). No JavaScript API change.
+
 ## [1.0.0] — 2026-08-17
 
 Same code as 0.1.0, with the reference docs corrected. The version number is a
@@ -86,5 +126,6 @@ legacy React Native architectures.
 - Validation enforced natively rather than in JavaScript, so a native-only
   integration and this package answer the same for the same input.
 
+[1.1.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v1.0.0
 [0.1.0]: https://github.com/Deeplinkly/react-native-deeplinkly/releases/tag/v0.1.0

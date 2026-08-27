@@ -40,6 +40,15 @@ RCT_EXTERN_METHOD(setUserId
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(setUserData
+                  : (NSDictionary *)fields resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(clearUserData
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(getInstallAttribution
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
@@ -57,6 +66,11 @@ RCT_EXTERN_METHOD(generateLink
 RCT_EXTERN_METHOD(logEvent
                   : (NSString *)eventName parameters
                   : (NSDictionary *)parameters resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(logPurchase
+                  : (NSDictionary *)fields resolve
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 

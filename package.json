@@ -1,6 +1,6 @@
 {
   "name": "react-native-deeplinkly",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "React Native SDK for deep linking, deferred deep linking, install referrer tracking, and attribution.",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",

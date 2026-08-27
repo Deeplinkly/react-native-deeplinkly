@@ -5,7 +5,9 @@ import type {
   DeeplinklyContent,
   DeeplinklyLink,
   DeeplinklyLinkOptions,
+  DeeplinklyPurchase,
   DeeplinklyResult,
+  DeeplinklyUserData,
   EventParameterValue,
 } from './types';
 
@@ -113,6 +115,68 @@ export const Deeplinkly = {
     ignore(NativeDeeplinkly.setUserId(userId));
   },
 
+  /**
+   * Record what you know about the person using your app.
+   *
+   * These are the fields a conversion is matched on once it is forwarded to
+   * Meta's Conversions API or Google's enhanced conversions. On iOS with App
+   * Tracking Transparency denied — which is most devices — a hashed email is
+   * the only match key that still exists, so supplying one here is the
+   * difference between a purchase attributed to the campaign that produced it
+   * and one that is not.
+   *
+   * Values are sent as supplied and hashed only at forwarding time. On-device
+   * hashing would look safer and buy nothing: the digest of a normalised email
+   * is exactly the value Meta matches on, so anyone holding it holds the match
+   * key. Supply only what your own privacy policy and consent flow allow — the
+   * SDK cannot know what you told your users.
+   *
+   * Each call **merges**: a field left undefined is left as it was. A single
+   * field therefore cannot be cleared by omitting it — {@link clearUserData}
+   * erases all of them, and {@link setUserId} with `null` clears just the id.
+   *
+   * The rules are enforced natively, so a native-only integration gets the same
+   * answer this one does. Resolves false if any field was malformed, in which
+   * case **nothing** was stored.
+   */
+  async setUserData(data: DeeplinklyUserData): Promise<boolean> {
+    try {
+      // Snake_case at the boundary: these are the keys both native bridges
+      // read, and they are the catalogue's own spelling.
+      return await NativeDeeplinkly.setUserData({
+        user_id: data.userId ?? null,
+        email: data.email ?? null,
+        phone_number: data.phoneNumber ?? null,
+        first_name: data.firstName ?? null,
+        last_name: data.lastName ?? null,
+        date_of_birth: data.dateOfBirth ?? null,
+        gender: data.gender ?? null,
+        street: data.street ?? null,
+        city: data.city ?? null,
+        state: data.state ?? null,
+        zip: data.zip ?? null,
+        country: data.country ?? null,
+      });
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Forget everything {@link setUserData} and {@link setUserId} recorded, here
+   * and on Deeplinkly's servers.
+   *
+   * Call it on sign-out, or when someone withdraws consent. Unlike letting the
+   * values simply stop being sent, this actively erases them: the next
+   * enrichment carries each previously-set field as an empty value, which the
+   * backend reads as "null this column" rather than "not reported". The erasure
+   * is re-sent until it is delivered, so calling this on a device that is
+   * offline still takes effect once it is not.
+   */
+  clearUserData(): void {
+    ignore(NativeDeeplinkly.clearUserData());
+  },
+
   /** Install attribution for this device. Empty object on failure. */
   async getInstallAttribution(): Promise<Record<string, string>> {
     try {
@@ -196,6 +260,40 @@ export const Deeplinkly = {
   ): Promise<boolean> {
     try {
       return await NativeDeeplinkly.logEvent(eventName, parameters);
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Log a purchase.
+   *
+   * A thin, typed wrapper over {@link logEvent} rather than a separate
+   * pipeline: it sends the event named `purchase` with `value` and `currency`
+   * set, and everything true of `logEvent` — the retry queue, the parameter
+   * limits, the device block — is true of this too.
+   *
+   * The wrapper exists because those two keys have to be spelled the same way
+   * by every caller. `logEvent` is untyped, so left to themselves one app sends
+   * `revenue`, another sends `"USD 49.99"`, and a conversion forwarder has to
+   * guess. Meta's Conversions API wants `custom_data.value` and `currency`;
+   * Google wants a conversion value and currency. This is the one spelling both
+   * can be built from.
+   *
+   * Rejected natively — resolving false and sending nothing — if the value is
+   * negative or not finite, the currency is not three letters, the quantity is
+   * negative, or `parameters` collides with a reserved key.
+   */
+  async logPurchase(purchase: DeeplinklyPurchase): Promise<boolean> {
+    try {
+      return await NativeDeeplinkly.logPurchase({
+        value: purchase.value,
+        currency: purchase.currency,
+        order_id: purchase.orderId ?? null,
+        quantity: purchase.quantity ?? null,
+        product_id: purchase.productId ?? null,
+        parameters: purchase.parameters ?? {},
+      });
     } catch {
       return false;
     }

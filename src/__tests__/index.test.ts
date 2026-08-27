@@ -21,10 +21,13 @@ function happyNative() {
     isAvailable: jest.fn().mockResolvedValue(true),
     getDeeplinklyId: jest.fn().mockResolvedValue('device-1'),
     setUserId: jest.fn().mockResolvedValue(undefined),
+    setUserData: jest.fn().mockResolvedValue(true),
+    clearUserData: jest.fn().mockResolvedValue(true),
     getInstallAttribution: jest.fn().mockResolvedValue({ source: 'deep_link' }),
     resetPrivacyData: jest.fn().mockResolvedValue(true),
     generateLink: jest.fn().mockResolvedValue({ success: true, url: 'https://x/y' }),
     logEvent: jest.fn().mockResolvedValue(true),
+    logPurchase: jest.fn().mockResolvedValue(true),
     disableTracking: jest.fn().mockResolvedValue(true),
     setAttributionLevel: jest.fn().mockResolvedValue(true),
     getAttributionLevel: jest.fn().mockResolvedValue('full'),
@@ -286,6 +289,138 @@ describe('failure values when the native call rejects', () => {
     const { Deeplinkly } = loadWith(rejecting());
     expect(() => Deeplinkly.setUserId('u')).not.toThrow();
     await Promise.resolve();
+  });
+
+  it('setUserData resolves false', async () => {
+    const { Deeplinkly } = loadWith(rejecting());
+    await expect(Deeplinkly.setUserData({ email: 'a@b.com' })).resolves.toBe(
+      false
+    );
+  });
+
+  it('logPurchase resolves false', async () => {
+    const { Deeplinkly } = loadWith(rejecting());
+    await expect(
+      Deeplinkly.logPurchase({ value: 1, currency: 'USD' })
+    ).resolves.toBe(false);
+  });
+
+  it('clearUserData does not reject, since it is fire-and-forget', async () => {
+    const { Deeplinkly } = loadWith(rejecting());
+    expect(() => Deeplinkly.clearUserData()).not.toThrow();
+    await Promise.resolve();
+  });
+});
+
+/**
+ * The camelCase-to-snake_case rename at the bridge.
+ *
+ * Both native sides read `fields.getString("phone_number")`, and a mismatch
+ * here is silent: the native side finds nothing and stores a user with no
+ * phone rather than failing. Nothing downstream would notice until a
+ * conversion quietly stopped matching, so the wire shape is pinned.
+ */
+describe('user data and purchases cross the bridge under the keys native reads', () => {
+  it('setUserData renames every field and sends nulls for the rest', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setUserData({
+      userId: 'u1',
+      email: 'ada@example.com',
+      phoneNumber: '+441234567890',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      dateOfBirth: '1815-12-10',
+      gender: 'f',
+      street: '12 Example Street',
+      city: 'London',
+      state: 'Greater London',
+      zip: 'W1A 1AA',
+      country: 'GB',
+    });
+
+    expect(native.setUserData).toHaveBeenCalledWith({
+      user_id: 'u1',
+      email: 'ada@example.com',
+      phone_number: '+441234567890',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+      date_of_birth: '1815-12-10',
+      gender: 'f',
+      street: '12 Example Street',
+      city: 'London',
+      state: 'Greater London',
+      zip: 'W1A 1AA',
+      country: 'GB',
+    });
+  });
+
+  /**
+   * An omitted field crosses as null rather than being left off. The native
+   * side merges and treats both the same way today, but sending the key keeps
+   * "not supplied" expressible if that ever stops being true.
+   */
+  it('setUserData sends null for a field that was not supplied', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setUserData({ email: 'ada@example.com' });
+
+    expect(native.setUserData).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'ada@example.com', city: null })
+    );
+  });
+
+  it('logPurchase renames the optional fields and defaults the parameters', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.logPurchase({
+      value: 49.99,
+      // Not uppercased here: normalisation is native, so this bridge and a
+      // native caller cannot disagree about what 'usd' becomes.
+      currency: 'usd',
+      orderId: 'order-1',
+      quantity: 2,
+      productId: 'sku-9',
+      parameters: { coupon: 'SPRING' },
+    });
+
+    expect(native.logPurchase).toHaveBeenCalledWith({
+      value: 49.99,
+      currency: 'usd',
+      order_id: 'order-1',
+      quantity: 2,
+      product_id: 'sku-9',
+      parameters: { coupon: 'SPRING' },
+    });
+  });
+
+  it('logPurchase sends nulls and an empty parameter map when only the amount is given', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.logPurchase({ value: 10, currency: 'EUR' });
+
+    expect(native.logPurchase).toHaveBeenCalledWith({
+      value: 10,
+      currency: 'EUR',
+      order_id: null,
+      quantity: null,
+      product_id: null,
+      parameters: {},
+    });
+  });
+
+  it('clearUserData is forwarded to native', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    Deeplinkly.clearUserData();
+    await Promise.resolve();
+
+    expect(native.clearUserData).toHaveBeenCalled();
   });
 });
 
