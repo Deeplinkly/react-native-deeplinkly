@@ -1,6 +1,6 @@
 <!-- GENERATED FILE — do not edit. -->
-<!-- Generated from Deeplinkly's shared signal catalogue; regenerate at the
-     source and copy the result here rather than editing this file. -->
+<!-- Source: tool/signals.json -->
+<!-- Regenerate: dart run tool/gen_signals.dart -->
 
 # Device signals
 
@@ -17,7 +17,8 @@ ships at `full`; `full` ships only at `full`. At `none` nothing is sent.
 
 **When** — `static` is collected once per device and cached until the app,
 OS or SDK version changes. `dynamic` is re-read on every send. `identity`
-names the link or user being reported on rather than the device.
+names the link being reported on rather than the device, and `user` is what
+the host app told us about the person via `setUserData()`.
 
 ## Link identity
 
@@ -40,29 +41,20 @@ names the link or user being reported on rather than the device.
 
 ## User data
 
-What the host app told us about the person, via `setUserData()` / `setUserId()`.
-Not observed, not derived — values you supplied. They are sent as supplied and
-hashed only when a conversion is forwarded to Meta or Google.
-
-Classified `minimal`, so they survive a `.reduced` downgrade. The attribution
-levels gate what the SDK *observes* about a device, and an email the person
-typed into your app is not an observation. At `.none` nothing is sent, here as
-everywhere.
-
-| Field | Level | Type | Platforms | Max length |
-| --- | --- | --- | --- | --- |
-| `custom_user_id` | minimal | string | both | 256 |
-| `user_email` | minimal | string | both | 320 |
-| `user_phone` | minimal | string | both | 32 |
-| `user_first_name` | minimal | string | both | 128 |
-| `user_last_name` | minimal | string | both | 128 |
-| `user_date_of_birth` | minimal | string | both | 10 |
-| `user_gender` | minimal | string | both | 1 |
-| `user_street` | minimal | string | both | 256 |
-| `user_city` | minimal | string | both | 128 |
-| `user_state` | minimal | string | both | 128 |
-| `user_zip` | minimal | string | both | 32 |
-| `user_country` | minimal | string | both | 2 |
+| Field | Level | Type | Platforms |
+| --- | --- | --- | --- |
+| `custom_user_id` | minimal | string | both |
+| `user_city` | minimal | string | both |
+| `user_country` | minimal | string | both |
+| `user_date_of_birth` | minimal | string | both |
+| `user_email` | minimal | string | both |
+| `user_first_name` | minimal | string | both |
+| `user_gender` | minimal | string | both |
+| `user_last_name` | minimal | string | both |
+| `user_phone` | minimal | string | both |
+| `user_state` | minimal | string | both |
+| `user_street` | minimal | string | both |
+| `user_zip` | minimal | string | both |
 
 ## Static device profile
 
