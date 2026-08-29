@@ -1,7 +1,7 @@
 PODS:
   - boost (1.84.0):
     - ReactNativeDependencies
-  - Deeplinkly (1.2.0)
+  - Deeplinkly (1.2.1)
   - DoubleConversion (1.1.6):
     - ReactNativeDependencies
   - fast_float (8.0.0):
@@ -1248,7 +1248,7 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - react-native-deeplinkly (1.2.0):
-    - Deeplinkly (= 1.2.0)
+    - Deeplinkly (= 1.2.1)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1975,7 +1975,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   boost: 8502bfdc46e2804408af2e163049ece181009af4
-  Deeplinkly: 489b72e8ffff587007ed9153412cf7d0442a181d
+  Deeplinkly: 6eff7ad4084217f1f0ed4aeaaf078c023d872fe5
   DoubleConversion: 501a575c40c0b50c89685762dd3e415e6bb26fb0
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: 732df79fea96f10cc14477969cea05707026d2fd
@@ -2022,7 +2022,7 @@ SPEC CHECKSUMS:
   React-Mapbuffer: acf4ac61f163f15ced7dfad7308957816b2d7abd
   React-microtasksnativemodule: 512d9f7c6b66574d90832a6b10b6102d4a8fdf30
   React-mutationobservernativemodule: 2c5abeb9a4ae316ba6d9420ef8d9baa81faa9d56
-  react-native-deeplinkly: 86fe088b0b1906eba7801e9db7587fc13a8793d3
+  react-native-deeplinkly: fa409f6cb8ab01e8a2f63868daaa301a84b2ed5f
   react-native-safe-area-context: 3a6b38edff2a811fc1e27f5ff81249b24ea7e607
   React-NativeModulesApple: 22b2f3e1538ceb1aab1ab182ccb0666ea2ec36ad
   React-networking: b58b3098d4a626f88bbaeaf6bf5e67b18ff39089
