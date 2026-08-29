@@ -29,7 +29,7 @@ Both modules are implemented and delegate fully. The public JS API is complete
 and matches the Flutter plugin's surface, plus `isAvailable()`. Both React Native
 architectures build.
 
-**Android direct links are verified on a device**, against a live backend: cold
+**Android direct links are verified on a device**, against a live service: cold
 and warm links each deliver exactly one envelope, and every method returns a real
 value. Getting there found and fixed one silent bug — `onActivityLaunch` was never
 being called, which dropped every cold-start link *and* killed deferred deep
@@ -172,14 +172,14 @@ Against React Native 0.87.0, Xcode 26.6, JDK 17, Kotlin 2.2.0.
 ### Android, on a device
 
 Run on a physical Samsung SM-A336E (Galaxy A33 5G), Android 16, arm64-v8a, over
-wireless ADB, against a live backend with a valid key. **Android is behaviourally
+wireless ADB, against a live service with a valid key. **Android is behaviourally
 verified; iOS is still compile-only.**
 
 - `isAvailable() == true`, `getDeeplinklyId()` returns a stable UUID.
 - Every method resolves — no not-linked proxy. `logEvent` → `true`, `setUserId`,
   attribution level round-trips `full → reduced → full`, and both pasteboard
   calls answer `false` as Android should.
-- `generateLink` returns `{success: true, url: …}` from the backend, and the
+- `generateLink` returns `{success: true, url: …}` from the service, and the
   typed TurboModule carries the native map into JS intact. A failure came back as
   a correctly-shaped error object too, so both branches are exercised.
 - **Cold start from a real link delivers exactly one envelope.** `generateLink`
@@ -240,7 +240,7 @@ The full deferred flow, on the simulator, with no signed build:
 3. iOS raises `"DeeplinklyExample" would like to paste from …`. Allow it.
 
 Result: exactly one envelope, `params={screen: deferred_pasteboard, plan: trial}`,
-carrying a **new** `click_id` — resolving by short code mints a fresh ClickEvent,
+carrying a **new** `click_id` — resolving by short code mints a fresh a click record,
 as it should. The app's own prefs record
 `initial_attribution = {click_id: …, source: "clipboard"}`, which is the proof it
 travelled the deferred channel rather than arriving as a direct link.
@@ -269,7 +269,7 @@ answer is `false` no matter what is on the clipboard — it is not purely a
 - The API key reaches the app through the gitignored-file → xcconfig → Info.plist
   chain: the built `DeeplinklyExample.app/Info.plist` carries the real key and
   `DeeplinklyLinkDomains = [myott.deeplinkly.com]`.
-- `generate-url` and `resolve` were driven directly against the backend with the
+- `generate-url` and `resolve` were driven directly against the service with the
   same key while preparing test links, so the account and key are good from this
   machine.
 
@@ -455,7 +455,7 @@ Two details worth keeping:
   manifest entry, which is what you want a fresh clone to see.
 
 The key previously here was reused from `flutter_deeplinkly/example`. It is
-**dead** — the backend answers `ER_002 Invalid API Key` (403) to every call made
+**dead** — the service answers `ER_002 Invalid API Key` (403) to every call made
 with it, so `generateLink` failed and enrichment was rejected. Anything in an
 older revision of this doc claiming the example "inherits a domain-verified
 setup" is wrong on both counts: the key is invalid, and the current key's link
@@ -537,7 +537,7 @@ the screen, force-stop, and launch from that URL. The obvious-looking
 `deeplinkly://open?screen=home` can *never* deliver: `DeepLinkHandler` requires a
 `click_id` or a short code and logs `No click_id or Deeplinkly code in intent,
 skipping` for anything else (`DeepLinkHandler.kt:134`). A hand-made
-`?click_id=anything` is not much better — with a valid key the backend answers
+`?click_id=anything` is not much better — with a valid key the service answers
 `stale: true` for an unknown id and delivery is deliberately suppressed.
 
 ```bash

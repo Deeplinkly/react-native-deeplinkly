@@ -2,6 +2,7 @@ import { NativeEventEmitter } from 'react-native';
 import NativeDeeplinkly from './NativeDeeplinkly';
 import type {
   AttributionLevel,
+  DeeplinklyConsent,
   DeeplinklyContent,
   DeeplinklyLink,
   DeeplinklyLinkOptions,
@@ -9,6 +10,7 @@ import type {
   DeeplinklyResult,
   DeeplinklyUserData,
   EventParameterValue,
+  PushProvider,
 } from './types';
 
 export * from './types';
@@ -142,7 +144,11 @@ export const Deeplinkly = {
   async setUserData(data: DeeplinklyUserData): Promise<boolean> {
     try {
       // Snake_case at the boundary: these are the keys both native bridges
-      // read, and they are the catalogue's own spelling.
+      // read by name. Mostly the catalogue's own spelling minus its `user_`
+      // prefix, with two exceptions — `user_id` is `custom_user_id` and
+      // `phone_number` is `user_phone`. Renaming any of them here without the
+      // two native modules drops that field silently; the catalogue parity test
+      // pins the whole set.
       return await NativeDeeplinkly.setUserData({
         user_id: data.userId ?? null,
         email: data.email ?? null,
@@ -156,6 +162,7 @@ export const Deeplinkly = {
         state: data.state ?? null,
         zip: data.zip ?? null,
         country: data.country ?? null,
+        custom_data: data.customData ?? null,
       });
     } catch {
       return false;
@@ -169,12 +176,136 @@ export const Deeplinkly = {
    * Call it on sign-out, or when someone withdraws consent. Unlike letting the
    * values simply stop being sent, this actively erases them: the next
    * enrichment carries each previously-set field as an empty value, which the
-   * backend reads as "null this column" rather than "not reported". The erasure
+   * service reads as "null this column" rather than "not reported". The erasure
    * is re-sent until it is delivered, so calling this on a device that is
    * offline still takes effect once it is not.
    */
   clearUserData(): void {
     ignore(NativeDeeplinkly.clearUserData());
+  },
+
+  /**
+   * Report the person's advertising-consent answers.
+   *
+   * These travel with every enrichment and are attached to conversions when
+   * they are forwarded to an ad network. Google requires both `adUserData` and
+   * `adPersonalization` to be `'granted'` before a conversion for an EEA or UK
+   * user may be used, and treats an absent answer differently from an explicit
+   * `'unknown'` — so report what you actually know rather than defaulting.
+   *
+   * ## What this does and does not do
+   *
+   * This records what the person agreed to *with your ad networks*. It does not
+   * change what the SDK collects — {@link setAttributionLevel} is that control,
+   * and the two are independent on purpose: an app can hold consent to describe
+   * the device while holding none to personalise ads on it, and the reverse. On
+   * iOS it is also unrelated to App Tracking Transparency, which governs the
+   * IDFA rather than what may be done with a conversion.
+   *
+   * Consent survives sign-out and survives a restore onto a new device.
+   * {@link clearUserData} does not touch it: signing out is not withdrawing
+   * consent. To record a withdrawal, call this again with `'denied'` — a value
+   * the forwarder acts on, where forgetting the answer would read as "this app
+   * has no consent model" and is a weaker statement, not a stronger one.
+   *
+   * Each call merges: an omitted field is left as it was. Re-reporting an
+   * unchanged answer costs nothing.
+   *
+   * Resolves false only if the SDK is not initialised.
+   */
+  async setConsent(consent: DeeplinklyConsent): Promise<boolean> {
+    try {
+      // Snake_case at the boundary, and `null` rather than omitted for an
+      // absent field: both native bridges read these keys by name and treat
+      // null as "leave this one alone".
+      return await NativeDeeplinkly.setConsent({
+        ad_user_data: consent.adUserData ?? null,
+        ad_personalization: consent.adPersonalization ?? null,
+        is_eea: consent.isEea ?? null,
+      });
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Supply the device's push token so uninstalls can be measured.
+   *
+   * Neither platform notifies a server when an app is removed. Every
+   * measurement provider detects it the same way: send a silent, contentless
+   * push periodically and read the failure — APNs answers 410 and FCM answers
+   * `UNREGISTERED` once the app is gone. Handing us the token is the whole of
+   * the app's part; nothing is shown to the user, and a data-only message needs
+   * no notification permission.
+   *
+   * Call it whenever your token changes and once at launch with the current
+   * one. Re-reporting an unchanged token costs nothing.
+   *
+   * ## Level
+   *
+   * `push_token` is a `full`-tier signal: a unique, stable, per-install
+   * identifier a server can address, which is what that tier means. An app at
+   * `'reduced'` or below does not report it and does not get uninstall numbers.
+   * That is the level working as documented, not a defect.
+   *
+   * Pass `null` to forget the token. Omit `provider` to take the platform
+   * default — FCM on Android, APNs on iOS — and set it explicitly when that is
+   * wrong for you, which on iOS means an app holding an FCM token rather than a
+   * raw APNs one.
+   *
+   * Resolves false only if the SDK is not initialised.
+   */
+  async setPushToken(
+    token: string | null,
+    provider?: PushProvider
+  ): Promise<boolean> {
+    try {
+      return await NativeDeeplinkly.setPushToken({
+        token: token ?? null,
+        provider: provider ?? null,
+      });
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Hash the identifying fields on this device before they are sent.
+   *
+   * Off unless you turn it on. With it on, the email, phone number and names
+   * given to {@link setUserData} are SHA-256 hashed on the device, so the
+   * plaintext never leaves it. What is stored locally is still what you
+   * supplied, so turning this back off restores the previous behaviour.
+   *
+   * **This costs attribution quality, and the trade is yours to make.** A
+   * digest is computed once, under one normalisation, and advertising
+   * destinations do not agree about phone formatting — so a conversion
+   * forwarded to a destination whose rules differ will not match. Turn this on
+   * when a compliance requirement says plaintext must not leave the device,
+   * not by default.
+   *
+   * Phone numbers are normalised by discarding non-digits, which does not
+   * understand trunk prefixes — send one consistent format.
+   *
+   * Gender, country and date of birth are deliberately not hashed: their value
+   * ranges are small enough to reverse a digest by enumeration, so it would be
+   * protection in appearance only.
+   */
+  async setPIIHashingEnabled(enabled: boolean): Promise<boolean> {
+    try {
+      return await NativeDeeplinkly.setPIIHashingEnabled(enabled);
+    } catch {
+      return false;
+    }
+  },
+
+  /** Whether {@link setPIIHashingEnabled} is on. Off unless it was turned on. */
+  async isPIIHashingEnabled(): Promise<boolean> {
+    try {
+      return await NativeDeeplinkly.isPIIHashingEnabled();
+    } catch {
+      return false;
+    }
   },
 
   /** Install attribution for this device. Empty object on failure. */
@@ -237,7 +368,7 @@ export const Deeplinkly = {
 
   /**
    * Log a custom event. Resolves true if accepted by the native layer and the
-   * backend.
+   * service.
    *
    * The rules are enforced natively rather than here, so a native-only
    * integration gets the same answer this one does:
@@ -246,7 +377,7 @@ export const Deeplinkly = {
    * - at most 25 parameters
    * - parameter keys: non-empty after trimming, at most 64 characters, and may
    *   not start with `_dl_` (reserved for the metadata the SDK attaches to
-   *   every event, which the backend excludes from the parameter budget)
+   *   every event, which the service excludes from the parameter budget)
    * - string values: at most 256 characters
    * - array/object values: stored as compact JSON, and it is that encoded form
    *   the 256 limit applies to; values that will not encode are rejected

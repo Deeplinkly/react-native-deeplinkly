@@ -38,6 +38,14 @@ abstract class DeeplinklyModuleSpec(context: ReactApplicationContext) :
 
   abstract fun clearUserData(promise: Promise)
 
+  abstract fun setConsent(fields: ReadableMap, promise: Promise)
+
+  abstract fun setPushToken(fields: ReadableMap, promise: Promise)
+
+  abstract fun setPIIHashingEnabled(enabled: Boolean, promise: Promise)
+
+  abstract fun isPIIHashingEnabled(promise: Promise)
+
   abstract fun getInstallAttribution(promise: Promise)
 
   abstract fun generateLink(content: ReadableMap, options: ReadableMap, promise: Promise)

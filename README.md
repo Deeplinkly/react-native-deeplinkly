@@ -61,7 +61,7 @@ useEffect(() => {
 ```
 
 Every link arrives in the same envelope on both platforms — `click_id` is always
-present but may be `null` when the backend did not recognise the click, and
+present but may be `null` when the service did not recognise the click, and
 `params` falls back to the URL's own parameters when the resolve could not
 complete:
 

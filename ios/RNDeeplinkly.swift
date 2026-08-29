@@ -175,8 +175,30 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
         city: string("city"),
         state: string("state"),
         zip: string("zip"),
-        country: string("country")
+        country: string("country"),
+        // JS sends a plain object; NSNull arrives for a null value, so it is
+        // mapped back to nil rather than bridged in as an object.
+        customData: (fields["custom_data"] as? [String: Any])?
+          .mapValues { $0 as? String }
       ))
+  }
+
+  @objc(setPIIHashingEnabled:resolve:reject:)
+  func setPIIHashingEnabled(
+    _ enabled: NSNumber,
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    resolve(Deeplinkly.setPIIHashingEnabled(enabled.boolValue))
+  }
+
+  @objc(isPIIHashingEnabled:reject:)
+  func isPIIHashingEnabled(
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    resolve(Deeplinkly.isPIIHashingEnabled())
   }
 
   @objc(clearUserData:reject:)
@@ -187,6 +209,44 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
     guard Deeplinkly.isEnabled else { return resolve(false) }
     Deeplinkly.clearUserData()
     resolve(true)
+  }
+
+  /**
+   Absent and an explicit `"unknown"` are different answers — see `ConsentState`
+   — so a key JavaScript did not send stays nil here rather than being coerced
+   to a default. An unparseable value is treated the same way: leaving the
+   previous answer standing beats overwriting it with a guess.
+   */
+  @objc(setConsent:resolve:reject:)
+  func setConsent(
+    _ fields: NSDictionary,
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    resolve(
+      Deeplinkly.setConsent(
+        adUserData: ConsentState.fromWireName(fields["ad_user_data"] as? String),
+        adPersonalization: ConsentState.fromWireName(
+          fields["ad_personalization"] as? String),
+        isEEA: fields["is_eea"] as? Bool
+      ))
+  }
+
+  /**
+   Defaults to APNs rather than refusing an unknown provider name: an iOS token
+   is APNs in every ordinary case, and dropping the token over a typo would
+   silently cost uninstall measurement for the whole install.
+   */
+  @objc(setPushToken:resolve:reject:)
+  func setPushToken(
+    _ fields: NSDictionary,
+    resolve: RCTPromiseResolveBlock,
+    reject: RCTPromiseRejectBlock
+  ) {
+    guard Deeplinkly.isEnabled else { return resolve(false) }
+    let provider = PushProvider.fromWireName(fields["provider"] as? String) ?? .apns
+    resolve(Deeplinkly.setPushToken(fields["token"] as? String, provider: provider))
   }
 
   @objc(getInstallAttribution:reject:)
@@ -210,7 +270,7 @@ final class RNDeeplinkly: RCTEventEmitter, DeeplinklyDeepLinkListener {
     guard Deeplinkly.isEnabled else { return resolve(Self.disabledResult) }
 
     // Flat-merged and passed straight through, so whatever the JS models
-    // produced reaches the backend unaltered. Options win on key collision.
+    // produced reaches the service unaltered. Options win on key collision.
     var payload = (content as? [String: Any]) ?? [:]
     for (key, value) in (options as? [String: Any]) ?? [:] {
       payload[key] = value

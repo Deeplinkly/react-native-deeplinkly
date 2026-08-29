@@ -9,6 +9,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `setUserData` takes a `customData` map, carried to both native SDKs. It exists
+  so attaching a new identifier — a Mixpanel distinct id, an Amplitude device
+  id, a CleverTap id — does not have to wait for an app release: your binary is
+  frozen for a whole release cycle and the set of ids you may need is not. Up to
+  10 entries, 64-character keys, 256-character values, enforced natively.
+
+- `setPIIHashingEnabled(boolean)` and `isPIIHashingEnabled()`. With it on, the
+  email, phone number and names given to `setUserData` are SHA-256 hashed on the
+  device, so the plaintext never leaves it. Off unless you turn it on.
+
+  Only those four are hashed. Gender, country and date of birth are not: their
+  value ranges are small enough that a digest is reversed by enumerating them,
+  so hashing them would be protection in appearance only.
+
+  It costs attribution quality and the trade is yours. A digest is computed
+  once, under one normalisation, and advertising destinations disagree about
+  phone formatting — so a conversion forwarded to a destination whose rules
+  differ will not match. Turn it on when a compliance requirement says plaintext
+  must not leave the device.
+
+- Registers the install with SKAdNetwork on initialize, through the native
+  iOS SDK — no Dart or JS call is needed. Apple sends no postback unless the
+  advertised app registers, so this is what makes an
+  `NSAdvertisingAttributionReportEndpoint` in your Info.plist receive
+  anything. Skipped while tracking is disabled.
+- Signal catalogue version 10, inherited from the two native SDKs. Adds the
+  Google Ads auto-tagging markers `gad_source` and `gad_campaignid`, which
+  roughly half of Google Ads traffic carries with no `utm_source` at all, and
+  Android-only `total_storage_gb` / `free_storage_gb` in whole gigabytes. iOS
+  sends no disk-space signal: Apple's required-reason rules forbid sending the
+  value off-device.
 - `setUserData()` records the email, phone, name and address a conversion is
   matched on at Meta's Conversions API and Google's enhanced conversions. Every
   field is optional and each call merges, so you can supply an email at sign-up

@@ -91,6 +91,23 @@ export interface Spec extends TurboModule {
 
   setAttributionLevel(level: string): Promise<boolean>;
 
+  /**
+   * The person's advertising-consent answers.
+   *
+   * One flat object rather than three arguments, so an omitted key stays
+   * omitted: absent and an explicit `'unknown'` are different answers and the
+   * bridge must not collapse them.
+   */
+  setConsent(fields: CodegenTypes.UnsafeObject): Promise<boolean>;
+
+  /** The device's push token, for uninstall measurement. */
+  setPushToken(fields: CodegenTypes.UnsafeObject): Promise<boolean>;
+
+  /** Hash the identifying fields on this device before they are sent. */
+  setPIIHashingEnabled(enabled: boolean): Promise<boolean>;
+
+  isPIIHashingEnabled(): Promise<boolean>;
+
   getAttributionLevel(): Promise<string>;
 
   // -- pasteboard (iOS only; the Android side returns false) ----------------

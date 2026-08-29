@@ -399,13 +399,13 @@ Every deep link arrives in the same envelope on both platforms:
 
 ```ts
 {
-  click_id: 'ab12…',          // null if the backend did not recognise the click
+  click_id: 'ab12…',          // null if the service did not recognise the click
   params: { screen: 'home' }, // the link's own parameters
 }
 ```
 
 `click_id` is always present; only its value may be null. `params` carries the
-link's parameters whether they came back from the backend or, when it could not
+link's parameters whether they came back from the service or, when it could not
 be reached, from the URL itself — so a single read path covers both.
 
 Do not attach a listener and immediately unsubscribe on a screen that unmounts.
@@ -423,7 +423,7 @@ Deeplinkly.setUserId('user_123');
 
 `getDeeplinklyId` is the stable per-install id, the same value the API sees as
 `deeplinkly_device_id` / `X-Deeplinkly-User-Id`. `setUserId` sets
-`custom_user_id` for enrichment and backend user linking; pass `null` to clear.
+`custom_user_id` for enrichment and service user linking; pass `null` to clear.
 
 ## Record user data
 
@@ -452,7 +452,7 @@ nothing is stored — so you never have to guess which of the values took.
 Values are sent as you supply them and hashed only when a conversion is
 forwarded. On-device hashing would look safer and buy nothing: the digest of a
 normalised email is exactly the value Meta matches on, so anyone holding it
-holds the match key. Keeping the plaintext is also what lets the backend
+holds the match key. Keeping the plaintext is also what lets the service
 normalise per destination, which Meta and Google disagree about.
 
 Supply only what your own privacy policy and consent flow allow — the SDK cannot
@@ -477,7 +477,7 @@ Deeplinkly.clearUserData();
 ```
 
 This is not merely "stop sending": the next enrichment reports each
-previously-set field as empty, which the backend reads as "null this column".
+previously-set field as empty, which the service reads as "null this column".
 The erasure is re-sent until it is delivered, so calling it on a device that is
 offline still takes effect once it is not. To clear only the id, call
 `setUserId(null)`.
@@ -494,7 +494,7 @@ const ok = await Deeplinkly.logEvent(DeeplinklyEvent.purchase, {
 });
 ```
 
-`DeeplinklyEvent` holds the well-known names the backend reports on without extra
+`DeeplinklyEvent` holds the well-known names the service reports on without extra
 configuration; any string is accepted.
 
 Validation constraints:
@@ -550,7 +550,7 @@ it is how you reconcile a forwarded conversion against your own records.
 Every event, purchase or not, also carries a client-generated event id. It is
 Meta CAPI's `event_id`, and it is what makes a replay off the retry queue
 idempotent: an event that was delivered but whose response was lost comes back
-carrying an id the backend already has, and is refused rather than counted
+carrying an id the service already has, and is refused rather than counted
 twice.
 
 ## Generate Deeplinkly links
@@ -582,7 +582,7 @@ comma-separated string) and silently discards anything else.
 The result is `{ success, url?, errorCode?, errorMessage? }`. It resolves rather
 than rejecting on failure. Observed `errorCode` values: `SDK_DISABLED`,
 `INVALID`, `NO_URL`, `LINK_ERROR`, `HTTP_<status>`, `NULL_NATIVE_RESPONSE`,
-`NATIVE_EXCEPTION`, or a backend code passed through.
+`NATIVE_EXCEPTION`, or a service code passed through.
 
 The keys are camelCase here and snake_case on the wire. Everything else crossing
 the bridge keeps the native SDKs' own shapes — the deep link envelope's

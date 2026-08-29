@@ -23,6 +23,8 @@ function happyNative() {
     setUserId: jest.fn().mockResolvedValue(undefined),
     setUserData: jest.fn().mockResolvedValue(true),
     clearUserData: jest.fn().mockResolvedValue(true),
+    setConsent: jest.fn().mockResolvedValue(true),
+    setPushToken: jest.fn().mockResolvedValue(true),
     getInstallAttribution: jest.fn().mockResolvedValue({ source: 'deep_link' }),
     resetPrivacyData: jest.fn().mockResolvedValue(true),
     generateLink: jest.fn().mockResolvedValue({ success: true, url: 'https://x/y' }),
@@ -170,7 +172,7 @@ describe('event delivery', () => {
 });
 
 describe('pass-through', () => {
-  it('maps generateLink content to the wire names the backend requires', () => {
+  it('maps generateLink content to the wire names the service requires', () => {
     // The camelCase public surface is translated here, not natively: the API
     // rejects `canonicalIdentifier` with "Missing canonical_identifier". Content
     // and options stay two maps because the native side flat-merges them.
@@ -353,7 +355,43 @@ describe('user data and purchases cross the bridge under the keys native reads',
       state: 'Greater London',
       zip: 'W1A 1AA',
       country: 'GB',
+      custom_data: null,
     });
+  });
+
+  // The open field. It rides the same call rather than a new method so an app
+  // that never uses it pays nothing, and so there is one validation path.
+  it('sends custom data under custom_data', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setUserData({
+      email: 'ada@example.com',
+      customData: { mixpanel_distinct_id: 'abc123', clevertap_id: 'xyz' },
+    });
+
+    expect(native.setUserData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        custom_data: { mixpanel_distinct_id: 'abc123', clevertap_id: 'xyz' },
+      })
+    );
+  });
+
+  // Nothing is validated here on purpose: the caps on entry count, key and
+  // value length live in the two native SDKs, so there is one implementation of
+  // the rule rather than three that can drift apart.
+  it('passes an oversized custom map through for native to judge', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    const big: Record<string, string> = {};
+    for (let i = 0; i < 50; i++) big[`key${i}`] = `value${i}`;
+    await Deeplinkly.setUserData({ customData: big });
+
+    const sent = native.setUserData.mock.calls[0][0] as {
+      custom_data: Record<string, string>;
+    };
+    expect(Object.keys(sent.custom_data)).toHaveLength(50);
   });
 
   /**
@@ -439,5 +477,161 @@ describe('when the native module is not linked', () => {
   it('getDeeplinklyId answers its failure value', async () => {
     const { Deeplinkly } = loadWith(undefined);
     await expect(Deeplinkly.getDeeplinklyId()).resolves.toBe('');
+  });
+});
+
+describe('user-data bridge keys against the catalogue', () => {
+  /**
+   * `setUserData` writes its bridge payload out one key at a time
+   * (`src/index.tsx`), and both native modules read it back one key at a time.
+   * That is a hand-maintained list of exactly the kind the generated catalogue
+   * exists to remove, and a published npm package freezes it as firmly as a
+   * compiled binary does — so a field added to the catalogue and missed here is
+   * a field no React Native app can send until the next release.
+   *
+   * `tool/signals.json` is the canonical catalogue, copied into this repo by
+   * `gen_signals.dart` and kept honest by its `--check`. Reading it here is what
+   * turns that copy from a reference into a gate.
+   */
+  const catalogue = JSON.parse(
+    require('fs').readFileSync(
+      require('path').join(__dirname, '..', '..', 'tool', 'signals.json'),
+      'utf8',
+    ),
+  ) as { signals: Record<string, { scope: string }> };
+
+  const userScope = Object.entries(catalogue.signals)
+    .filter(([, spec]) => spec.scope === 'user')
+    .map(([name]) => name);
+
+  /**
+   * The bridge spells these without the catalogue's `user_` prefix, with two
+   * exceptions it does not derive: `user_id` is the catalogue's
+   * `custom_user_id`, and `phone_number` is its `user_phone`.
+   *
+   * These are the strings both native modules read back by name
+   * (`DeeplinklyModule.kt`, `RNDeeplinkly.swift`), so they are the bridge's
+   * contract and not a spelling anyone is free to tidy — renaming one here
+   * without the two native modules silently drops that field. The exceptions
+   * are written down rather than smoothed over for the same reason.
+   */
+  const CATALOGUE_NAME: Readonly<Record<string, string>> = {
+    user_id: 'custom_user_id',
+    phone_number: 'user_phone',
+  };
+
+  function catalogueNameFor(bridgeKey: string): string {
+    return CATALOGUE_NAME[bridgeKey] ?? `user_${bridgeKey}`;
+  }
+
+  function bridgeKeys(): string[] {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+    void Deeplinkly.setUserData({
+      userId: 'u',
+      email: 'a@b.c',
+      phoneNumber: '+15551234567',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      dateOfBirth: '1815-12-10',
+      gender: 'f',
+      street: '1 Main St',
+      city: 'London',
+      state: 'LDN',
+      zip: 'NW1',
+      country: 'GB',
+    });
+    return Object.keys(native.setUserData.mock.calls[0][0] as object);
+  }
+
+  it('sends every user-scope signal the catalogue defines', () => {
+    const sent = bridgeKeys().map(catalogueNameFor);
+    expect(userScope.filter((name) => !sent.includes(name))).toEqual([]);
+  });
+
+  it('sends nothing the catalogue does not define', () => {
+    // The service is fail-closed, so an invented key is dropped silently rather
+    // than reported — which is why this direction needs a test of its own.
+    const sent = bridgeKeys().map(catalogueNameFor);
+    expect(sent.filter((name) => !userScope.includes(name))).toEqual([]);
+  });
+});
+
+describe('consent and the push token cross the bridge under the keys native reads', () => {
+  it('setConsent renames every field', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setConsent({
+      adUserData: 'granted',
+      adPersonalization: 'denied',
+      isEea: true,
+    });
+
+    expect(native.setConsent).toHaveBeenCalledWith({
+      ad_user_data: 'granted',
+      ad_personalization: 'denied',
+      is_eea: true,
+    });
+  });
+
+  /**
+   * The distinction the whole API rests on: an omitted field is not the same as
+   * `'unknown'`. It has to reach native as null so the merge leaves the stored
+   * answer alone, rather than as a value that overwrites it.
+   */
+  it('setConsent sends null for a field that was not supplied', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setConsent({ isEea: false });
+
+    expect(native.setConsent).toHaveBeenCalledWith({
+      ad_user_data: null,
+      ad_personalization: null,
+      is_eea: false,
+    });
+  });
+
+  it('setPushToken forwards the token and the provider', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setPushToken('tok-123', 'fcm');
+
+    expect(native.setPushToken).toHaveBeenCalledWith({
+      token: 'tok-123',
+      provider: 'fcm',
+    });
+  });
+
+  /**
+   * Omitting the provider must reach native as null rather than as a guess made
+   * here: each bridge applies its own platform default, FCM on Android and APNs
+   * on iOS, and JavaScript does not know which one it is talking to.
+   */
+  it('setPushToken sends a null provider when none is given', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setPushToken('tok-123');
+
+    expect(native.setPushToken).toHaveBeenCalledWith({
+      token: 'tok-123',
+      provider: null,
+    });
+  });
+
+  /** Null means "forget it", and has to survive the boundary as null. */
+  it('setPushToken forwards a null token', async () => {
+    const native = happyNative();
+    const { Deeplinkly } = loadWith(native);
+
+    await Deeplinkly.setPushToken(null);
+
+    expect(native.setPushToken).toHaveBeenCalledWith({
+      token: null,
+      provider: null,
+    });
   });
 });

@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import com.deeplinkly.android_deeplinkly.Deeplinkly
 import com.deeplinkly.android_deeplinkly.DeeplinklyDeepLinkListener
+import com.deeplinkly.android_deeplinkly.core.PushProvider
 import com.deeplinkly.android_deeplinkly.privacy.AttributionLevel
+import com.deeplinkly.android_deeplinkly.privacy.ConsentState
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
@@ -156,6 +158,17 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
         state = fields.getStringOrNull("state"),
         zip = fields.getStringOrNull("zip"),
         country = fields.getStringOrNull("country"),
+        // JS sends a plain object; it arrives as a ReadableMap, so the keys are
+        // narrowed here rather than trusted.
+        customData = fields.getMap("custom_data")?.let { custom ->
+          val out = mutableMapOf<String, String?>()
+          val keys = custom.keySetIterator()
+          while (keys.hasNextKey()) {
+            val key = keys.nextKey()
+            out[key] = custom.getStringOrNull(key)
+          }
+          out
+        },
       )
     )
   }
@@ -167,9 +180,55 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
     promise.resolve(true)
   }
 
+  /**
+   * Absent and an explicit `"unknown"` are different answers — see
+   * `ConsentState` — so a key JavaScript did not send stays null here rather
+   * than being coerced to a default. An unparseable value is treated the same
+   * way: leaving the previous answer standing beats overwriting it with a
+   * guess.
+   */
+  @ReactMethod
+  override fun setConsent(fields: ReadableMap, promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    promise.resolve(
+      Deeplinkly.setConsent(
+        adUserData = ConsentState.fromWireName(fields.getStringOrNull("ad_user_data")),
+        adPersonalization =
+          ConsentState.fromWireName(fields.getStringOrNull("ad_personalization")),
+        isEea = fields.getBooleanOrNull("is_eea"),
+      )
+    )
+  }
+
+  /**
+   * Defaults to FCM rather than refusing an unknown provider name: an Android
+   * token is FCM in every ordinary case, and dropping the token over a typo
+   * would silently cost uninstall measurement for the whole install.
+   */
+  @ReactMethod
+  override fun setPushToken(fields: ReadableMap, promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    val provider =
+      PushProvider.fromWireName(fields.getStringOrNull("provider")) ?: PushProvider.FCM
+    promise.resolve(Deeplinkly.setPushToken(fields.getStringOrNull("token"), provider))
+  }
+
+  override fun setPIIHashingEnabled(enabled: Boolean, promise: Promise) {
+    if (!requireEnabled(promise, false)) return
+    promise.resolve(Deeplinkly.setPIIHashingEnabled(enabled))
+  }
+
+  override fun isPIIHashingEnabled(promise: Promise) {
+    promise.resolve(Deeplinkly.isPIIHashingEnabled())
+  }
+
   /** Null for an absent key as well as an explicitly null one. */
   private fun ReadableMap.getStringOrNull(key: String): String? =
     if (hasKey(key) && !isNull(key)) getString(key) else null
+
+  /** Null for an absent key as well as an explicitly null one. */
+  private fun ReadableMap.getBooleanOrNull(key: String): Boolean? =
+    if (hasKey(key) && !isNull(key)) getBoolean(key) else null
 
   @ReactMethod
   override fun getInstallAttribution(promise: Promise) {
@@ -186,7 +245,7 @@ class DeeplinklyModule(reactContext: ReactApplicationContext) :
     if (!requireEnabled(promise, disabledResult())) return
 
     // Flat-merged and passed straight through, so whatever the JS models
-    // produced reaches the backend unaltered. Options win on key collision.
+    // produced reaches the service unaltered. Options win on key collision.
     val payload = HashMap<String, Any?>().apply {
       putAll(content.toHashMap())
       putAll(options.toHashMap())

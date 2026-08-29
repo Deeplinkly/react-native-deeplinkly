@@ -36,6 +36,56 @@ export type AttributionLevel =
    */
   | 'none';
 
+/**
+ * A single advertising-consent answer, in Google's vocabulary.
+ *
+ * These are not Deeplinkly's invention and are deliberately not renamed: they
+ * are the values Google Ads accepts on an uploaded conversion, so carrying them
+ * verbatim means the forwarder does no translation and there is no mapping
+ * table to get backwards.
+ *
+ * `'unknown'` is a positive statement — the app asked, or had the chance to,
+ * and has no answer. Never calling {@link Deeplinkly.setConsent} at all leaves
+ * the field absent, which says the app has no consent model wired up. Google
+ * treats those differently, so there is deliberately no fourth value for
+ * "not set": absence is expressed by omitting the field.
+ */
+export type ConsentState = 'granted' | 'denied' | 'unknown';
+
+/**
+ * Which push service a token addresses, so the uninstall prober knows what to
+ * speak. One React Native app ships to both platforms, so this is explicit
+ * rather than inferred.
+ */
+export type PushProvider = 'apns' | 'fcm';
+
+/**
+ * The person's advertising-consent answers, for {@link Deeplinkly.setConsent}.
+ *
+ * Every field is optional and each call merges, so an omitted field is left as
+ * it was rather than cleared — you can report {@link DeeplinklyConsent.isEea}
+ * at launch and the two answers when your banner is answered.
+ */
+export interface DeeplinklyConsent {
+  /**
+   * Whether user data may be sent to ad networks for measurement. Google
+   * Consent Mode's `ad_user_data`.
+   */
+  adUserData?: ConsentState;
+
+  /**
+   * Whether that data may be used to personalise advertising. Google Consent
+   * Mode's `ad_personalization`.
+   */
+  adPersonalization?: ConsentState;
+
+  /**
+   * Whether you consider this person in scope for GDPR. Your app knows this; we
+   * do not, and a geo-IP guess is not a consent record.
+   */
+  isEea?: boolean;
+}
+
 /** The content a generated link points at. */
 export interface DeeplinklyContent {
   /** Stable identifier for the thing being linked to. Required. */
@@ -76,13 +126,13 @@ export interface DeeplinklyResult {
  */
 export interface DeeplinklyLink {
   /**
-   * The click this link resolved to, or `null` when the backend did not
+   * The click this link resolved to, or `null` when the service did not
    * recognise it. The key is always present; only its value may be null.
    */
   click_id: string | null;
 
   /**
-   * The link's own parameters — from the backend when it could be reached, and
+   * The link's own parameters — from the service when it could be reached, and
    * from the URL itself when it could not, so one read path covers both.
    */
   params: Record<string, unknown>;
@@ -112,6 +162,18 @@ export interface DeeplinklyUserData {
   zip?: string | null;
   /** ISO-3166-1 alpha-2, e.g. `"US"`. */
   country?: string | null;
+  /**
+   * Identifiers Deeplinkly does not name — typically your own product-analytics
+   * ids, such as a Mixpanel distinct id or a CleverTap id.
+   *
+   * Up to 10 entries, keys up to 64 characters and values up to 256. Anything
+   * larger rejects the whole call, as one bad typed field does.
+   *
+   * It exists so attaching a new identifier does not have to wait for an app
+   * release: your binary is frozen for a whole release cycle, and the set of
+   * ids you may need is not.
+   */
+  customData?: Record<string, string | null> | null;
 }
 
 /** A purchase, for {@link Deeplinkly.logPurchase}. */
@@ -139,7 +201,7 @@ export type EventParameterValue =
   | unknown[]
   | Record<string, unknown>;
 
-/** Well-known event names the backend reports on without extra configuration. */
+/** Well-known event names the service reports on without extra configuration. */
 export const DeeplinklyEvent = {
   login: 'login',
   signup: 'signup',
