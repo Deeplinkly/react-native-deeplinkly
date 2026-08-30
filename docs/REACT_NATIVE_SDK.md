@@ -449,11 +449,11 @@ Every field is optional and each call **merges**, so you can supply an email at
 sign-up and an address at checkout. A malformed field rejects the whole call —
 nothing is stored — so you never have to guess which of the values took.
 
-Values are sent as you supply them and hashed only when a conversion is
-forwarded. On-device hashing would look safer and buy nothing: the digest of a
-normalised email is exactly the value Meta matches on, so anyone holding it
-holds the match key. Keeping the plaintext is also what lets the service
-normalise per destination, which Meta and Google disagree about.
+By default the values are sent as you supply them and hashed only when a
+conversion is forwarded, which is what lets the service normalise per
+destination — Meta and Google disagree about that. `setPIIHashingEnabled(true)`
+moves the hashing onto the device instead; see [Hashing identifiers on the
+device](#hashing-identifiers-on-the-device) for what that buys and costs.
 
 Supply only what your own privacy policy and consent flow allow — the SDK cannot
 know what you told your users. These fields survive a `reduced` downgrade,
@@ -469,6 +469,36 @@ Constraints, enforced natively before anything is stored:
   not say.
 - `country`: ISO-3166-1 alpha-2, e.g. `'US'`
 - per-field maximum lengths, listed in [SIGNALS.md](SIGNALS.md)
+
+### Your own identifiers
+
+`customData` carries identifiers Deeplinkly does not name — typically your own
+product-analytics ids, such as a Mixpanel distinct id, an Amplitude device id or
+a CleverTap id:
+
+```ts
+await Deeplinkly.setUserData({
+  userId: 'user_123',
+  customData: {
+    mixpanel_distinct_id: 'd-8837',
+    clevertap_id: 'ct-4412',
+  },
+});
+```
+
+It exists so attaching a new identifier does not have to wait for an app
+release: your binary is frozen for a whole release cycle and the set of ids you
+may need is not. Previously this meant waiting for a new named field and a new
+app release; now it is a service change.
+
+Bounded at 10 entries, 64-character keys and 256-character values, enforced
+natively, and encoded with sorted keys so the same map always produces the same
+string. Anything larger rejects the whole call, exactly as one bad typed field
+does. It travels as one catalogue signal, `user_custom_data`, rather than open
+wire keys, so the published inventory and the `ErrorLog` redaction stay derived
+from a closed set. It is treated exactly like the twelve named fields: user
+scope, `minimal` tier, erased by `clearUserData()`, and in scope for the erasure
+API.
 
 To erase everything recorded — on sign-out, or when someone withdraws consent:
 
@@ -610,6 +640,38 @@ attribution, cached device profile, session and event state, pasteboard state an
 pending queues. Tracking stays disabled afterwards; call
 `setTrackingEnabled(true)` only once the user opts back in.
 
+### Hashing identifiers on the device
+
+Off by default. With it on, the identifying fields are SHA-256 hashed on the
+device before they are sent, so the plaintext never leaves it:
+
+```ts
+await Deeplinkly.setPIIHashingEnabled(true);
+await Deeplinkly.isPIIHashingEnabled(); // off unless you turned it on
+```
+
+Both platforms hash; nothing is hashed in JavaScript. The normalisation must
+match the service byte for byte or an erasure request stops finding the person
+it names, so there is one implementation per platform rather than a third here.
+The state is reported as `pii_hashing_enabled`, so the service knows whether the
+columns hold digests.
+
+Only email, phone, first and last name are hashed. Gender, country and date of
+birth are not: their value ranges are small enough that a digest is reversed by
+enumerating them, so hashing them would be protection in appearance only.
+
+**It costs attribution quality, and the trade is yours.** A digest is computed
+once, under one normalisation, and advertising destinations disagree about phone
+formatting — so a conversion forwarded to a destination whose rules differ will
+not match, and the service can no longer re-derive per destination because the
+value it would need is gone. Phone numbers are normalised by discarding
+non-digits, which does not understand trunk prefixes, so send one consistent
+format. Turn it on when a compliance requirement says plaintext must not leave
+the device, not by default.
+
+Hashing happens at send time rather than in the store, so the switch is
+reversible.
+
 ### Attribution levels
 
 For consent flows that need a middle ground between "track" and "don't":
@@ -656,6 +718,8 @@ be sent during native module construction, before a JS call could arrive:
 | `setTrackingEnabled(bool)` | `Promise<boolean>` | Persists across launches |
 | `resetPrivacyData()` | `Promise<boolean>` | Leaves tracking disabled |
 | `setAttributionLevel(level)` | `Promise<boolean>` | False on an unknown level |
+| `setPIIHashingEnabled(enabled)` | `Promise<boolean>` | SHA-256 the email, phone and names on the device before sending. Off by default |
+| `isPIIHashingEnabled()` | `Promise<boolean>` | Whether on-device hashing is on |
 | `getAttributionLevel()` | `Promise<AttributionLevel>` | `none` while tracking is off |
 | `setCheckPasteboardOnInstall(on, checkNow?)` | `Promise<boolean>` | iOS only; false on Android |
 | `willShowPasteboardBanner()` | `Promise<boolean>` | Costs nothing, shows nothing |

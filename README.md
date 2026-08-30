@@ -13,8 +13,8 @@ native SDKs, shared with every other Deeplinkly integration:
 
 | Layer   | Artifact                                  |
 | ------- | ----------------------------------------- |
-| Android | `com.deeplinkly:deeplinkly-android:1.1.1` |
-| iOS     | pod `Deeplinkly`, `1.0.1`                 |
+| Android | `com.deeplinkly:deeplinkly-android:1.3.0` |
+| iOS     | pod `Deeplinkly`, `1.2.1`                 |
 
 Native method names match the SDKs' own entry points one-for-one, so no
 integration can drift from another. Event and link validation is enforced natively
@@ -92,6 +92,65 @@ Resolves `false` if the native validator rejects it — name ≤ 64 chars, ≤ 2
 parameters, keys ≤ 64 and not prefixed `_dl_`, string values ≤ 256 (arrays and
 objects are JSON-encoded first and the limit applies to the encoded form).
 
+### Identify the person
+
+```ts
+const stored = await Deeplinkly.setUserData({
+  userId: 'user_123',
+  email: 'ada@example.com',
+  phoneNumber: '+441234567890',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  city: 'London',
+  country: 'GB',
+});
+```
+
+The fields a conversion is matched on once it reaches Meta's Conversions API or
+Google's enhanced conversions. Every field is optional and calls **merge**, so
+you can supply an email at sign-up and an address at checkout. Resolves `false`
+if any field was malformed, in which case nothing was stored — all or nothing,
+so a rejected call never leaves you guessing which values took. Validation is
+native, so a native-only integration gets the same answer.
+
+`customData` carries ids Deeplinkly does not name — a Mixpanel distinct id, a
+CleverTap id — so attaching one does not have to wait for an app release. Up to
+10 entries, 64-character keys, 256-character values.
+
+```ts
+await Deeplinkly.setUserData({
+  userId: 'user_123',
+  customData: { mixpanel_distinct_id: 'd-8837', clevertap_id: 'ct-4412' },
+});
+
+Deeplinkly.clearUserData(); // on sign-out, or when consent is withdrawn
+```
+
+`clearUserData()` is not merely "stop sending": the next enrichment carries each
+previously-set field as an empty value, which the service reads as "null this
+column". It is re-sent until delivered.
+
+### Report a purchase
+
+```ts
+await Deeplinkly.logPurchase({
+  value: 49.99,
+  currency: 'USD',
+  orderId: 'ord_42',
+  quantity: 1,
+  productId: 'sku_9',
+});
+```
+
+A typed wrapper over `logEvent`, not a separate pipeline. It exists because
+`value` and `currency` have to be spelled the same way by every caller: Meta's
+Conversions API wants `custom_data.value` and `currency`, Google wants a
+conversion value and currency, and this is the one spelling both are built from.
+Pass `orderId` where you have one — it is Google's deduplication key. Rejected,
+sending nothing, if the value is negative or not finite (a refund is a different
+event), the currency is not three letters, or `parameters` holds a key this
+method sets.
+
 ### Privacy
 
 ```ts
@@ -99,6 +158,19 @@ await Deeplinkly.setTrackingEnabled(false);      // consent-flow off switch
 await Deeplinkly.setAttributionLevel('reduced'); // middle ground
 await Deeplinkly.resetPrivacyData();             // forget this device
 ```
+
+```ts
+await Deeplinkly.setPIIHashingEnabled(true);  // SHA-256 on device before sending
+await Deeplinkly.isPIIHashingEnabled();       // off unless you turned it on
+```
+
+With hashing on, the email, phone and names given to `setUserData` are SHA-256
+hashed on the device, so the plaintext never leaves it. Only those four: gender,
+country and date of birth have value ranges small enough that a digest is
+reversed by enumeration, so hashing them would be protection in appearance only.
+It costs match quality — a digest is computed once under one normalisation while
+destinations disagree about phone formatting — so turn it on when a compliance
+requirement says plaintext must not leave the device, not by default.
 
 Deep links keep resolving and keep reaching your listener at every level,
 including `'none'` and while tracking is disabled — these gate *reporting*, not
